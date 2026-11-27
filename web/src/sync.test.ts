@@ -91,6 +91,7 @@ describe("follow", () => {
       currentTime: () => time,
       isPaused: () => true,
       isBuffering: () => buffering,
+      duration: () => 0,
       supportsRate: true,
       destroy: () => {},
     };

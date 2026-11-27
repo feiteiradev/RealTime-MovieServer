@@ -17,6 +17,8 @@ export interface Player {
   setMuted(muted: boolean): void;
   /** Seconds. */
   currentTime(): number;
+  /** Seconds; 0 or non-finite when not known. */
+  duration(): number;
   isPaused(): boolean;
   /** Still loading after a seek or a stall: the position isn't advancing yet. */
   isBuffering(): boolean;

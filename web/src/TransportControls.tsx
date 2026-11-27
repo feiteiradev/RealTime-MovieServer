@@ -21,10 +21,11 @@ type Props = { player: Player; playback: PlaybackState; events: PlayerEvents; vo
 
 /** Speed and ±10 s are Shared Controls, sent through the player events; volume and mute stay local. */
 export function TransportControls({ player, playback, events, volume, onVolume }: Props) {
-  // YouTube items carry no duration; its player clamps a seek past the end itself.
-  const duration = playback.mediaItem?.source === "local" ? playback.mediaItem.duration : Infinity;
-
-  const jump = (delta: number) => events.onUserSeek(Math.min(Math.max(player.currentTime() + delta, 0), duration));
+  const jump = (delta: number) => {
+    const d = player.duration();
+    const end = Number.isFinite(d) && d > 0 ? d : Infinity; // unknown: the player clamps a seek past the end itself
+    events.onUserSeek(Math.min(Math.max(player.currentTime() + delta, 0), end));
+  };
   const changeVolume = (v: number) => {
     onVolume({ ...volume, level: Math.round(Math.min(Math.max(v, 0), 1) * 10) / 10 });
   };

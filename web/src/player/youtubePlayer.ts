@@ -13,6 +13,7 @@ type YTPlayer = {
   mute(): void;
   unMute(): void;
   getCurrentTime(): number;
+  getDuration(): number;
   getPlayerState(): number;
   destroy(): void;
 };
@@ -157,6 +158,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
       else p.unMute();
     },
     currentTime: () => p.getCurrentTime(),
+    duration: () => p.getDuration(),
     isPaused: () => {
       const s = p.getPlayerState();
       return s !== PLAYING && s !== BUFFERING;

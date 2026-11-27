@@ -25,7 +25,12 @@ export async function readDuration(file: File): Promise<number> {
 }
 
 export async function createLocalFilePlayer(video: HTMLVideoElement, file: File, events: PlayerEvents): Promise<Player> {
-  await load(video, file);
+  try {
+    await load(video, file);
+  } catch (err) {
+    URL.revokeObjectURL(video.src);
+    throw err;
+  }
   const listening = new AbortController();
   const on = (type: string, fn: () => void) => video.addEventListener(type, fn, { signal: listening.signal });
 
@@ -89,6 +94,7 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
       video.muted = muted;
     },
     currentTime: () => video.currentTime,
+    duration: () => video.duration,
     isPaused: () => video.paused,
     isBuffering: () => video.seeking, // not readyState: a paused copy can sit below HAVE_FUTURE_DATA and must still jump to the Room
     supportsRate: true,

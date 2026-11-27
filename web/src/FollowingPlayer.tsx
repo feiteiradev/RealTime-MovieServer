@@ -27,7 +27,6 @@ type Props = {
 /** Any Source's player, kept following the Playback State, with the Transport Controls under it. */
 export function FollowingPlayer({ sourceKey, create, playback, offset, events, volume, onVolume, className, hideOnError }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const player = useRef<Player | null>(null);
   const [ready, setReady] = useState<Player | null>(null);
   const [failed, setFailed] = useState(false);
   const latest = useRef(playback);
@@ -44,12 +43,13 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
     };
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
+    let player: Player | undefined;
     create(slot, { ...events, onError: fail }).then(
       (p) => {
         if (cancelled) return p.destroy();
-        player.current = p;
-        setReady(p);
-        follow(p, latest.current, offset(), Date.now());
+        player = p;
+        setReady(p); // the [playback, ready] effect follows it straight away
+        events.onBuffering(false); // a fresh player isn't buffering yet
         timer = setInterval(() => follow(p, latest.current, offset(), Date.now()), FOLLOW_EVERY_MS);
       },
       (err: Error) => !cancelled && fail(err.message),
@@ -57,16 +57,16 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
     return () => {
       cancelled = true;
       clearInterval(timer);
-      player.current?.destroy();
-      player.current = null;
+      player?.destroy();
       setReady(null);
+      events.onBuffering(false);
       container.current?.replaceChildren(); // the IFrame API swaps the slot for its <iframe>
     };
   }, [sourceKey]);
 
   useEffect(() => {
-    if (player.current) follow(player.current, playback, offset(), Date.now());
-  }, [playback]);
+    if (ready) follow(ready, playback, offset(), Date.now());
+  }, [playback, ready]);
 
   // Volume is the Viewer's own and outlives any one player.
   useEffect(() => {
