@@ -1,6 +1,9 @@
 // The WebSocket protocol. Mirror of server/room/protocol.go: change both together.
 
-export type Viewer = { id: string; nickname: string; status: string };
+/** "disconnected" is set by the server only. */
+export type ViewerStatus = "watching" | "buffering" | "needsFile" | "disconnected";
+
+export type Viewer = { id: string; nickname: string; status: ViewerStatus };
 
 /** Flat across Sources; each Source uses its own fields. */
 export type MediaItem =
@@ -30,7 +33,8 @@ export type ClientMessage =
   | { type: "pause"; position: number }
   | { type: "seek"; position: number }
   | { type: "setMedia"; mediaItem: MediaItem }
-  | { type: "ping"; clientTime: number };
+  | { type: "ping"; clientTime: number }
+  | { type: "status"; status: Exclude<ViewerStatus, "disconnected"> };
 
 export type ServerMessage =
   | { type: "welcome"; viewerId: string; state: PlaybackState; viewers: Viewer[] }

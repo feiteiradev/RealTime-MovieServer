@@ -3,12 +3,19 @@ import type { ClientMessage, PlaybackState, ServerMessage, Viewer } from "./prot
 import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
+import { CopyCheck } from "./CopyCheck";
 import { SetYouTubeLink } from "./SetYouTubeLink";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { bestClockSample, clockSample, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
 const PING_EVERY_MS = 2000;
+const STATUS_LABEL: Record<Viewer["status"], string> = {
+  watching: "watching",
+  buffering: "buffering",
+  needsFile: "needs file",
+  disconnected: "disconnected",
+};
 
 function savedNickname(): string {
   try {
@@ -34,6 +41,14 @@ export default function App() {
 
   useEffect(() => () => socket.current?.close(), []);
 
+  // This Viewer's status, sent whenever it changes (and on joining).
+  const [buffering, setBuffering] = useState(false);
+  useEffect(() => setBuffering(false), [copy]); // a fresh player isn't buffering yet
+  const status = playback?.mediaItem?.source === "local" && !copy ? "needsFile" : buffering ? "buffering" : "watching";
+  useEffect(() => {
+    if (viewerId) send({ type: "status", status });
+  }, [viewerId, status]);
+
   const offset = () => clock.current?.offset ?? 0;
   const send = (msg: ClientMessage) => socket.current?.send(JSON.stringify(msg));
   const setPlayback = (s: PlaybackState) => {
@@ -57,7 +72,7 @@ export default function App() {
     onUserPause: (p) => control("pause", p),
     onUserSeek: (p) => control("seek", p),
     onEnded: (p) => control("pause", p),
-    onBuffering: () => {}, // reported as Viewer status in a later ticket
+    onBuffering: setBuffering,
     onError: setError,
   };
 
@@ -182,6 +197,7 @@ export default function App() {
         {item?.source === "local" && copy && playback && (
           <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
         )}
+        {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
         <label className="flex flex-col gap-1">
           Set a Local File
           <input type="file" accept="video/*,audio/*" onChange={setLocalFile} />
@@ -208,6 +224,7 @@ export default function App() {
             <li key={v.id}>
               {v.nickname}
               {v.id === viewerId && " (you)"}
+              {` · ${STATUS_LABEL[v.status] ?? v.status}`}
             </li>
           ))}
         </ul>
