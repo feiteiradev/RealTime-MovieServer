@@ -18,6 +18,8 @@ export async function readDuration(file: File): Promise<number> {
   video.preload = "metadata";
   try {
     await load(video, file);
+    // e.g. a MediaRecorder webm reports Infinity: it would reach the server as null.
+    if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error("Can't read this file's length; try an MP4 copy");
     return video.duration;
   } finally {
     URL.revokeObjectURL(video.src);
