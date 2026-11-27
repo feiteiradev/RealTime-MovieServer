@@ -44,7 +44,6 @@ const PLAYING = 1;
 const PAUSED = 2;
 const BUFFERING = 3;
 const SAMPLE_EVERY_MS = 250;
-const OWN_SEEK_PLAY_MS = 1000;
 
 let api: Promise<YTNamespace> | undefined;
 function loadApi(): Promise<YTNamespace> {
@@ -70,8 +69,9 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
   // have no event, so `last` samples the time and our own seek() resets it to the target.
   let playing = false;
   let last: TimeSample = { time: 0, at: performance.now() };
-  // seekTo on a video that hasn't started yet also starts it; that play is ours, not the Viewer's.
-  let ownSeekAt = -Infinity;
+  // seekTo on a video that hasn't started (or has ended) also starts it, however long it buffers
+  // first; that play is ours, not the Viewer's. Cleared by the PLAYING it suppresses, or a PAUSED.
+  let ownSeekPlay = false;
   let rate = 1; // likewise, the speed we last set
   // A blocked autoplay goes straight to PAUSED; only a pause after real playback is the Viewer's.
   let reachedPlaying = false;
@@ -104,15 +104,19 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
           if (e.data === PLAYING) {
             reachedPlaying = true;
             events.onBuffering(false);
-            if (!playing && performance.now() - ownSeekAt < OWN_SEEK_PLAY_MS) {
+            if (!playing && ownSeekPlay) {
+              ownSeekPlay = false;
               player.pauseVideo();
             } else if (!playing) {
               playing = true;
               events.onUserPlay(time);
             }
-          } else if (e.data === PAUSED && playing && reachedPlaying) {
-            playing = false;
-            events.onUserPause(time);
+          } else if (e.data === PAUSED) {
+            ownSeekPlay = false;
+            if (playing && reachedPlaying) {
+              playing = false;
+              events.onUserPause(time);
+            }
           } else if (e.data === ENDED) {
             playing = false;
             events.onEnded(time);
@@ -135,6 +139,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
     play() {
       playing = true;
       reachedPlaying = false;
+      ownSeekPlay = false;
       p.playVideo(); // blocked autoplay: the next sync tick tries again
     },
     pause() {
@@ -143,7 +148,8 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
     },
     seek(position) {
       last = { time: position, at: performance.now() };
-      ownSeekAt = last.at;
+      const state = p.getPlayerState();
+      if (!playing && state !== PLAYING && state !== PAUSED) ownSeekPlay = true;
       p.seekTo(position, true);
     },
     setRate(r) {
