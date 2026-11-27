@@ -75,13 +75,13 @@ export default function App() {
   /** The file this Viewer just sent setMedia for; becomes their copy when the state comes back. */
   const settingFile = useRef<File | null>(null);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    unmounted.current = false; // StrictMode's dev remount runs the cleanup below first
+    return () => {
       unmounted.current = true;
       socket.current?.close();
-    },
-    [],
-  );
+    };
+  }, []);
 
   // This Viewer's status, sent whenever it changes (and on joining).
   const [buffering, setBuffering] = useState(false);
