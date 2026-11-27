@@ -34,6 +34,7 @@ export type ClientMessage =
   | { type: "seek"; position: number }
   | { type: "setMedia"; mediaItem: MediaItem }
   | { type: "ping"; clientTime: number }
+  | { type: "rate"; rate: number }
   | { type: "status"; status: Exclude<ViewerStatus, "disconnected"> };
 
 export type ServerMessage =
@@ -42,3 +43,6 @@ export type ServerMessage =
   | { type: "state"; state: PlaybackState; byViewerId: string }
   | { type: "pong"; clientTime: number; serverTime: number }
   | { type: "error"; message: string };
+
+/** The speeds a Viewer can choose. Mirror of room.Rates. */
+export const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];

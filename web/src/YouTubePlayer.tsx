@@ -3,6 +3,7 @@ import type { PlaybackState } from "./protocol";
 import type { Player, PlayerEvents } from "./player/player";
 import { createYouTubePlayer } from "./player/youtubePlayer";
 import { follow } from "./sync";
+import { TransportControls } from "./TransportControls";
 
 const FOLLOW_EVERY_MS = 250;
 
@@ -19,6 +20,7 @@ type Props = {
 export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const player = useRef<Player | null>(null);
+  const [ready, setReady] = useState<Player | null>(null);
   const latest = useRef(playback);
   latest.current = playback;
   // An embed error hides the player, leaving only the readable message.
@@ -39,6 +41,7 @@ export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
       (p) => {
         if (cancelled) return p.destroy();
         player.current = p;
+        setReady(p);
         follow(p, latest.current, offset(), Date.now());
         timer = setInterval(() => follow(p, latest.current, offset(), Date.now()), FOLLOW_EVERY_MS);
       },
@@ -49,6 +52,7 @@ export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
       clearInterval(timer);
       player.current?.destroy();
       player.current = null;
+      setReady(null);
       container.current?.replaceChildren();
     };
   }, [videoId]);
@@ -57,5 +61,10 @@ export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
     if (player.current) follow(player.current, playback, offset(), Date.now());
   }, [playback]);
 
-  return <div ref={container} hidden={failed} className="aspect-video w-full [&>iframe]:h-full [&>iframe]:w-full" />;
+  return (
+    <div className="flex flex-col gap-2" hidden={failed}>
+      <div ref={container} className="aspect-video w-full [&>iframe]:h-full [&>iframe]:w-full" />
+      {ready && <TransportControls player={ready} playback={playback} events={events} />}
+    </div>
+  );
 }

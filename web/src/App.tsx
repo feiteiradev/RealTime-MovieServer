@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import type { ClientMessage, PlaybackState, ServerMessage, Viewer } from "./protocol";
+import { RATES, type ClientMessage, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
 import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
 import { CopyCheck } from "./CopyCheck";
 import { SetYouTubeLink } from "./SetYouTubeLink";
 import { YouTubePlayer } from "./YouTubePlayer";
-import { bestClockSample, clockSample, type ClockSample } from "./sync";
+import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
 const PING_EVERY_MS = 2000;
@@ -71,6 +71,13 @@ export default function App() {
     onUserPlay: (p) => control("play", p),
     onUserPause: (p) => control("pause", p),
     onUserSeek: (p) => control("seek", p),
+    onUserRate: (rate) => {
+      send({ type: "rate", rate });
+      const s = playbackRef.current;
+      if (!s || !RATES.includes(rate)) return; // other speeds are rejected; follow() puts it back
+      const now = Date.now() + offset();
+      setPlayback({ ...s, position: expectedPosition(s, now), rate, updatedAt: now });
+    },
     onEnded: (p) => control("pause", p),
     onBuffering: setBuffering,
     onError: setError,

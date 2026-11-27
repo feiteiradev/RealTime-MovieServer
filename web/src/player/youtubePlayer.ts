@@ -26,6 +26,7 @@ type YTNamespace = {
         onReady(): void;
         onStateChange(e: { data: number }): void;
         onError(e: { data: number }): void;
+        onPlaybackRateChange(e: { data: number }): void;
       };
     },
   ) => YTPlayer;
@@ -70,6 +71,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
   let last: TimeSample = { time: 0, at: performance.now() };
   // seekTo on a video that hasn't started yet also starts it; that play is ours, not the Viewer's.
   let ownSeekAt = -Infinity;
+  let rate = 1; // likewise, the speed we last set
 
   const p = await new Promise<YTPlayer>((resolve, reject) => {
     let ready = false;
@@ -87,6 +89,11 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
             player.destroy();
             reject(new Error(youtubeErrorMessage(e.data)));
           }
+        },
+        onPlaybackRateChange: (e) => {
+          if (!ready || e.data === rate) return; // ours
+          rate = e.data;
+          events.onUserRate(rate);
         },
         onStateChange: (e) => {
           if (!ready) return;
@@ -134,8 +141,9 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
       ownSeekAt = last.at;
       p.seekTo(position, true);
     },
-    setRate(rate) {
-      if (p.getPlaybackRate() !== rate) p.setPlaybackRate(rate);
+    setRate(r) {
+      rate = r;
+      if (p.getPlaybackRate() !== r) p.setPlaybackRate(r);
     },
     setVolume(volume) {
       p.setVolume(volume * 100);
