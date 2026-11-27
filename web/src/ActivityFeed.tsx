@@ -1,8 +1,9 @@
+import { memo } from "react";
 import type { FeedEntry } from "./protocol";
 import { describeEntry } from "./feed";
 
 /** Who did what in the Room, newest first. entries are oldest first, as the server sends them. */
-export function ActivityFeed({ entries }: { entries: FeedEntry[] }) {
+export const ActivityFeed = memo(function ActivityFeed({ entries }: { entries: FeedEntry[] }) {
   return (
     <section aria-labelledby="activity" className="flex flex-col gap-2.5">
       <h2 id="activity" className="heading">
@@ -20,4 +21,4 @@ export function ActivityFeed({ entries }: { entries: FeedEntry[] }) {
       </ol>
     </section>
   );
-}
+});

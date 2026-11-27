@@ -63,3 +63,9 @@ export type ServerMessage =
 
 /** The speeds a Viewer can choose. Mirror of room.Rates. */
 export const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/** Mirror of room.MaxNicknameLength. */
+export const MAX_NICKNAME_LENGTH = 32;
+
+/** How much Activity Feed the server keeps. Mirror of room.MaxFeedEntries. */
+export const MAX_FEED_ENTRIES = 50;

@@ -21,7 +21,7 @@ export function CopyCheck({ item, copy }: { item: Extract<MediaItem, { source: "
     return () => {
       cancelled = true;
     };
-  }, [item, copy]);
+  }, [item.name, item.size, item.duration, copy]);
 
   if (!warning) return null;
   return <Notice tone="warn">{warning}. You can keep watching anyway.</Notice>;

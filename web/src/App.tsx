@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { RATES, type ClientMessage, type FeedEntry, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
+import {
+  MAX_FEED_ENTRIES,
+  MAX_NICKNAME_LENGTH,
+  RATES,
+  type ClientMessage,
+  type FeedEntry,
+  type MediaItem,
+  type PlaybackState,
+  type ServerMessage,
+  type Viewer,
+} from "./protocol";
 import { ActivityFeed } from "./ActivityFeed";
 import type { PlayerEvents } from "./player/player";
 import { createLocalFilePlayer, readDuration } from "./player/localFilePlayer";
@@ -12,7 +22,10 @@ import { SetYouTubeLink } from "./SetYouTubeLink";
 import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
+/** Only the lowest-RTT ping is kept: a quick few after joining, then an occasional one. */
+const QUICK_PINGS = 5;
 const PING_EVERY_MS = 2000;
+const PING_SLOWLY_MS = 30_000;
 /** Reconnect backoff: 0.5 s, 1 s, 2 s … up to 10 s between tries. */
 const reconnectDelay = (attempt: number) => Math.min(500 * 2 ** attempt, 10_000);
 const STATUS_LABEL: Record<Viewer["status"], string> = {
@@ -27,6 +40,13 @@ const STATUS_DOT: Record<Viewer["status"], string> = {
   needsFile: "ring-[1.5px] ring-inset ring-muted",
   disconnected: "bg-edge",
 };
+
+/** The same Media Item, compared by what identifies it. */
+function sameItem(a: MediaItem | null | undefined, b: MediaItem | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  if (a.source === "youtube") return b.source === "youtube" && a.videoId === b.videoId;
+  return b.source === "local" && a.name === b.name && a.size === b.size && a.duration === b.duration;
+}
 
 function savedNickname(): string {
   try {
@@ -65,7 +85,6 @@ export default function App() {
 
   // This Viewer's status, sent whenever it changes (and on joining).
   const [buffering, setBuffering] = useState(false);
-  useEffect(() => setBuffering(false), [copy]); // a fresh player isn't buffering yet
   const status = playback?.mediaItem?.source === "local" && !copy ? "needsFile" : buffering ? "buffering" : "watching";
   useEffect(() => {
     if (viewerId) send({ type: "status", status });
@@ -76,6 +95,7 @@ export default function App() {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(msg));
   };
   const setPlayback = (s: PlaybackState) => {
+    if (!sameItem(s.mediaItem, playbackRef.current?.mediaItem)) setCopy(null); // a new Media Item: choose your copy of it
     playbackRef.current = s;
     setPlaybackState(s);
   };
@@ -129,8 +149,11 @@ export default function App() {
     socket.current = ws;
     let me = previousId ?? "";
     let joined = false;
-    let pinger: ReturnType<typeof setInterval> | undefined;
-    const ping = () => send({ type: "ping", clientTime: Date.now() });
+    let pinger: ReturnType<typeof setTimeout> | undefined;
+    const ping = (n: number) => {
+      send({ type: "ping", clientTime: Date.now() });
+      pinger = setTimeout(() => ping(n + 1), n < QUICK_PINGS ? PING_EVERY_MS : PING_SLOWLY_MS);
+    };
     ws.onopen = () =>
       send(previousId ? { type: "join", nickname: name, viewerId: previousId } : { type: "join", nickname: name });
     ws.onmessage = (event) => {
@@ -142,24 +165,19 @@ export default function App() {
           setReconnecting(false);
           setViewerId(msg.viewerId);
           setViewers(msg.viewers);
-          // Back in the same Media Item after a reconnect: keep the chosen copy.
-          if (JSON.stringify(msg.state.mediaItem) !== JSON.stringify(playbackRef.current?.mediaItem)) setCopy(null);
-          setPlayback(msg.state);
+          setPlayback(msg.state); // back in the same Media Item after a reconnect: keeps the chosen copy
           setFeed(msg.feed);
-          ping();
-          pinger = setInterval(ping, PING_EVERY_MS);
+          ping(1);
           break;
         case "viewers":
           setViewers(msg.viewers);
           break;
         case "state":
-          if (msg.byViewerId === me && settingFile.current) {
-            setCopy(settingFile.current); // the setter's file is their copy
-            settingFile.current = null;
-          } else if (JSON.stringify(msg.state.mediaItem) !== JSON.stringify(playbackRef.current?.mediaItem)) {
-            setCopy(null); // a new Media Item: choose your copy of it
-          }
           setPlayback(msg.state);
+          if (msg.byViewerId === me && settingFile.current) {
+            setCopy(settingFile.current); // the setter's file is their copy (set after setPlayback's clear)
+            settingFile.current = null;
+          }
           break;
         case "pong":
           clock.current = bestClockSample(clock.current, clockSample(msg.clientTime, msg.serverTime, Date.now()));
@@ -168,12 +186,12 @@ export default function App() {
           setError(msg.message);
           break;
         case "feed":
-          setFeed((f) => [...f, msg.entry].slice(-50)); // the server keeps 50 too
+          setFeed((f) => [...f, msg.entry].slice(-MAX_FEED_ENTRIES));
           break;
       }
     };
     ws.onclose = () => {
-      clearInterval(pinger);
+      clearTimeout(pinger);
       if (socket.current !== ws || unmounted.current) return; // replaced or closed on purpose
       if (!me) return setViewerId(null); // never got in: back to the join form
       setReconnecting(true);
@@ -217,7 +235,7 @@ export default function App() {
                 id="nickname"
                 className="field h-12"
                 value={nickname}
-                maxLength={32}
+                maxLength={MAX_NICKNAME_LENGTH}
                 required
                 autoFocus
                 autoComplete="nickname"
