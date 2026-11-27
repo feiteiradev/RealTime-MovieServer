@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlaybackState } from "./protocol";
 import type { Player, PlayerEvents } from "./player/player";
 import { createLocalFilePlayer } from "./player/localFilePlayer";
 import { follow } from "./sync";
+import { TransportControls } from "./TransportControls";
 
 const FOLLOW_EVERY_MS = 250;
 
@@ -19,6 +20,7 @@ type Props = {
 export function LocalFilePlayer({ file, playback, offset, events }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const player = useRef<Player | null>(null);
+  const [ready, setReady] = useState<Player | null>(null);
   const latest = useRef(playback);
   latest.current = playback;
 
@@ -35,6 +37,7 @@ export function LocalFilePlayer({ file, playback, offset, events }: Props) {
       (p) => {
         if (cancelled) return p.destroy();
         player.current = p;
+        setReady(p);
         follow(p, latest.current, offset(), Date.now());
         timer = setInterval(() => follow(p, latest.current, offset(), Date.now()), FOLLOW_EVERY_MS);
       },
@@ -45,6 +48,7 @@ export function LocalFilePlayer({ file, playback, offset, events }: Props) {
       clearInterval(timer);
       player.current?.destroy();
       player.current = null;
+      setReady(null);
       video.remove();
     };
   }, [file]);
@@ -53,5 +57,10 @@ export function LocalFilePlayer({ file, playback, offset, events }: Props) {
     if (player.current) follow(player.current, playback, offset(), Date.now());
   }, [playback]);
 
-  return <div ref={container} />;
+  return (
+    <div className="flex flex-col gap-2">
+      <div ref={container} />
+      {ready && <TransportControls player={ready} playback={playback} events={events} />}
+    </div>
+  );
 }

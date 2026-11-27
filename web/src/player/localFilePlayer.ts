@@ -34,6 +34,8 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
   // is ours too; overlapping seeks fire one seeked, so a flag (not a counter) is right.
   let playing = false;
   let ownSeek = false;
+  let rate = video.playbackRate; // likewise, the speed we last set
+
 
   on("play", () => {
     if (playing) return;
@@ -53,6 +55,11 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
     if (ownSeek) ownSeek = false;
     else events.onUserSeek(video.currentTime);
   });
+  on("ratechange", () => {
+    if (video.playbackRate === rate) return; // ours
+    rate = video.playbackRate;
+    events.onUserRate(rate);
+  });
   on("waiting", () => events.onBuffering(true));
   on("playing", () => events.onBuffering(false));
   on("error", () => events.onError(CANT_DECODE));
@@ -70,8 +77,9 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
       ownSeek = true;
       video.currentTime = position;
     },
-    setRate(rate) {
-      if (video.playbackRate !== rate) video.playbackRate = rate;
+    setRate(r) {
+      rate = r;
+      if (video.playbackRate !== r) video.playbackRate = r;
     },
     setVolume(volume) {
       video.volume = volume;
