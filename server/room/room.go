@@ -6,9 +6,11 @@ package room
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -44,10 +46,10 @@ func (r *Room) Join(nickname, previousID string) (viewerID string, out []Deliver
 		return "", nil, errors.New("Nickname can't be empty")
 	}
 	if utf8.RuneCountInString(nickname) > MaxNicknameLength {
-		return "", nil, errors.New("Nickname must be at most 32 characters")
+		return "", nil, fmt.Errorf("Nickname must be at most %d characters", MaxNicknameLength)
 	}
 	var v Viewer
-	if i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == previousID && v.Nickname == nickname }); i >= 0 {
+	if i := r.index(previousID); i >= 0 && r.viewers[i].Nickname == nickname {
 		// A reconnect within the grace period: same entry, no new "join" in the Activity Feed.
 		delete(r.gone, previousID)
 		r.viewers[i].Status = "watching"
@@ -68,7 +70,7 @@ func (r *Room) Join(nickname, previousID string) (viewerID string, out []Deliver
 // Disconnect marks a Viewer whose connection dropped; Sweep removes them once the grace
 // period passes, unless they rejoin first. Unknown ids are ignored.
 func (r *Room) Disconnect(viewerID string) []Delivery {
-	i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	i := r.index(viewerID)
 	if i < 0 {
 		return nil
 	}
@@ -92,11 +94,12 @@ func (r *Room) Sweep() []Delivery {
 // Leave removes a Viewer. Unknown ids are ignored.
 func (r *Room) Leave(viewerID string) []Delivery {
 	delete(r.gone, viewerID)
-	if !slices.ContainsFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID }) {
+	i := r.index(viewerID)
+	if i < 0 {
 		return nil
 	}
 	feed := r.record(viewerID, FeedEntry{Action: "leave"}) // while their Nickname is still known
-	r.viewers = slices.DeleteFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	r.viewers = slices.Delete(r.viewers, i, i+1)
 	return []Delivery{{Msg: r.viewersMsg()}, feed}
 }
 
@@ -104,7 +107,7 @@ func (r *Room) Leave(viewerID string) []Delivery {
 // Every command that changes the Room calls it once it has succeeded.
 func (r *Room) record(viewerID string, e FeedEntry) Delivery {
 	e.At = r.now().UnixMilli()
-	if i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID }); i >= 0 {
+	if i := r.index(viewerID); i >= 0 {
 		e.Nickname = r.viewers[i].Nickname
 	}
 	r.feed = append(r.feed, e)
@@ -112,6 +115,11 @@ func (r *Room) record(viewerID string, e FeedEntry) Delivery {
 		r.feed = r.feed[len(r.feed)-MaxFeedEntries:]
 	}
 	return Delivery{Msg: Feed{Type: "feed", Entry: e}}
+}
+
+// index is the position of viewerID in r.viewers, or -1.
+func (r *Room) index(viewerID string) int {
+	return slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
 }
 
 func (r *Room) Viewers() []Viewer { return slices.Clone(r.viewers) }
@@ -122,7 +130,7 @@ func (r *Room) SetStatus(viewerID, status string) []Delivery {
 	if status != "watching" && status != "buffering" && status != "needsFile" {
 		return reject(viewerID, errors.New("Status must be watching, buffering or needsFile"))
 	}
-	i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	i := r.index(viewerID)
 	if i < 0 {
 		return nil
 	}
@@ -166,7 +174,7 @@ func (r *Room) SetRate(viewerID string, rate float64) []Delivery {
 		return reject(viewerID, errors.New("Set a Media Item first"))
 	}
 	if !slices.Contains(Rates, rate) {
-		return reject(viewerID, errors.New("Speed must be 0.5, 0.75, 1, 1.25, 1.5 or 2"))
+		return reject(viewerID, errors.New("Speed must be "+ratesText))
 	}
 	s := r.state
 	if s.Playing {
@@ -220,6 +228,15 @@ func validMediaItem(item MediaItem) error {
 		return errors.New("Unknown Source " + item.Source)
 	}
 }
+
+// ratesText lists Rates for the speed error: "0.5, 0.75, 1, 1.25, 1.5 or 2".
+var ratesText = func() string {
+	s := make([]string, len(Rates))
+	for i, r := range Rates {
+		s[i] = strconv.FormatFloat(r, 'g', -1, 64)
+	}
+	return strings.Join(s[:len(s)-1], ", ") + " or " + s[len(s)-1]
+}()
 
 var youtubeVideoID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 

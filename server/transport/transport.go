@@ -149,15 +149,19 @@ func (h *hub) sweep() {
 // timeout; fine for ~10 Viewers, move to per-connection send queues if that bites.
 func (h *hub) deliver(out []room.Delivery) {
 	for _, d := range out {
+		b, ok := encode(d.Msg)
+		if !ok {
+			continue
+		}
 		if d.To != "" {
 			if c := h.conns[d.To]; c != nil {
-				write(c, d.Msg)
+				writeBytes(c, b)
 			}
 			continue
 		}
 		for id, c := range h.conns {
 			if id != d.Except {
-				write(c, d.Msg)
+				writeBytes(c, b)
 			}
 		}
 	}
@@ -178,11 +182,21 @@ func sendError(c *websocket.Conn, message string) {
 }
 
 func write(c *websocket.Conn, msg any) {
+	if b, ok := encode(msg); ok {
+		writeBytes(c, b)
+	}
+}
+
+func encode(msg any) ([]byte, bool) {
 	b, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("encode %T: %v", msg, err)
-		return
+		return nil, false
 	}
+	return b, true
+}
+
+func writeBytes(c *websocket.Conn, b []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	c.Write(ctx, websocket.MessageText, b) // a failed write surfaces as a read error in that Viewer's loop
