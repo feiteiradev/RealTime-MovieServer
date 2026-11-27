@@ -55,6 +55,20 @@ func (r *Room) Leave(viewerID string) []Delivery {
 
 func (r *Room) Viewers() []Viewer { return slices.Clone(r.viewers) }
 
+// SetStatus records a Viewer's own status and tells everyone. Clients may not claim
+// "disconnected"; the server sets that.
+func (r *Room) SetStatus(viewerID, status string) []Delivery {
+	if status != "watching" && status != "buffering" && status != "needsFile" {
+		return reject(viewerID, errors.New("Status must be watching, buffering or needsFile"))
+	}
+	i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	if i < 0 {
+		return nil
+	}
+	r.viewers[i].Status = status
+	return []Delivery{{Msg: r.viewersMsg()}}
+}
+
 func (r *Room) viewersMsg() Viewers { return Viewers{Type: "viewers", Viewers: r.Viewers()} }
 
 // Shared Controls and setMedia: each returns the new state for everyone, or, if the

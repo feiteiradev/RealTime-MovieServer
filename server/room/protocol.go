@@ -23,6 +23,11 @@ type Ping struct {
 	ClientTime float64 `json:"clientTime"` // client ms, echoed back untouched
 }
 
+// Status is the sender's own Viewer status: "watching", "buffering" or "needsFile".
+type Status struct {
+	Status string `json:"status"`
+}
+
 // Server → client.
 
 type Pong struct {
@@ -77,7 +82,7 @@ type Error struct {
 type Viewer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
-	Status   string `json:"status"` // "watching" for now; later: buffering, needsFile, disconnected
+	Status   string `json:"status"` // "watching", "buffering", "needsFile" or "disconnected" (set by the server only)
 }
 
 // Delivery is a message the Room wants sent. To is a viewerId, or "" for every Viewer
