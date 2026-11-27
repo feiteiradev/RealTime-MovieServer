@@ -43,9 +43,7 @@ func TestEveryPlayerReportingTheEndPausesOnceAtTheEnd(t *testing.T) {
 	clock.ms.Store(601_600)
 	ana.send(map[string]any{"type": "pause", "position": 600.5})
 	ana.send(map[string]any{"type": "ping", "clientTime": 1})
-	if m := ana.read(); m.Type != "pong" {
-		t.Fatalf("got %q %+v after a duplicate end report, want only the pong", m.Type, m)
-	}
+	ana.expect("pong") // anything else (feed aside) means the Room spoke up
 }
 
 func TestReconnectingWithinTheGracePeriodReusesThePresenceEntry(t *testing.T) {
@@ -76,9 +74,29 @@ func TestReconnectingWithinTheGracePeriodReusesThePresenceEntry(t *testing.T) {
 	clock.ms.Store(1_000 + 2*room.DisconnectGrace.Milliseconds())
 	time.Sleep(time.Second)
 	ana.send(map[string]any{"type": "ping", "clientTime": 1})
-	if m := ana.read(); m.Type != "pong" {
-		t.Fatalf("got %q %+v, want pong (no removal)", m.Type, m)
+	ana.expect("pong") // anything else (feed aside) means the Room spoke up
+
+	// The blip left no trace in the Activity Feed: no leave, no second join.
+	for _, e := range dial(t, srv).join("Mia").Feed {
+		if e.Nickname == "Rui" && e.Action != "join" {
+			t.Fatalf("feed has %q after a reconnect within the grace period", e.describe())
+		}
 	}
+}
+
+func TestRemovalAfterTheGracePeriodIsOneLeaveInTheFeed(t *testing.T) {
+	srv, clock := startClockedServer(t, 1_000)
+	ana, rui := dial(t, srv), dial(t, srv)
+	ana.join("Ana")
+	rui.join("Rui")
+	ana.expect("viewers")
+	expectFeed(t, ana, "1000 Rui join")
+
+	rui.conn.CloseNow()
+	ana.expect("viewers")
+	clock.ms.Store(31_000)
+	ana.expect("viewers")
+	expectFeed(t, ana, "31000 Rui leave")
 }
 
 func TestRejoiningOnAFreshConnectionTakesOverTheOldOne(t *testing.T) {
@@ -103,9 +121,7 @@ func TestRejoiningOnAFreshConnectionTakesOverTheOldOne(t *testing.T) {
 	rui.conn.CloseNow()
 	time.Sleep(100 * time.Millisecond)
 	ana.send(map[string]any{"type": "ping", "clientTime": 1})
-	if m := ana.read(); m.Type != "pong" {
-		t.Fatalf("got %q %+v, want pong", m.Type, m)
-	}
+	ana.expect("pong") // anything else (feed aside) means the Room spoke up
 }
 
 func TestRejoinWithAnUnknownViewerIDOrAnotherNicknameJoinsAfresh(t *testing.T) {

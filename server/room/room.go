@@ -18,11 +18,15 @@ const MaxNicknameLength = 32
 // DisconnectGrace is how long a dropped Viewer keeps their place in the Room.
 const DisconnectGrace = 30 * time.Second
 
+// MaxFeedEntries is how much Activity Feed the Room keeps for late joiners.
+const MaxFeedEntries = 50
+
 type Room struct {
 	now     func() time.Time
 	viewers []Viewer // in join order
 	state   PlaybackState
 	gone    map[string]time.Time // disconnected viewerId → when
+	feed    []FeedEntry          // oldest first
 }
 
 // New makes an empty Room. now is the server clock (time.Now outside tests).
@@ -43,17 +47,21 @@ func (r *Room) Join(nickname, previousID string) (viewerID string, out []Deliver
 	}
 	var v Viewer
 	if i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == previousID && v.Nickname == nickname }); i >= 0 {
+		// A reconnect within the grace period: same entry, no new "join" in the Activity Feed.
 		delete(r.gone, previousID)
 		r.viewers[i].Status = "watching"
 		v = r.viewers[i]
 	} else {
 		v = Viewer{ID: rand.Text(), Nickname: nickname, Status: "watching"}
 		r.viewers = append(r.viewers, v)
+		feed := r.record(v.ID, FeedEntry{Action: "join"})
+		feed.Except = v.ID // the joiner gets it in their welcome
+		out = []Delivery{feed}
 	}
-	return v.ID, []Delivery{
-		{To: v.ID, Msg: Welcome{Type: "welcome", ViewerID: v.ID, State: r.state, Viewers: r.Viewers()}},
+	return v.ID, append([]Delivery{
+		{To: v.ID, Msg: Welcome{Type: "welcome", ViewerID: v.ID, State: r.state, Viewers: r.Viewers(), Feed: slices.Clone(r.feed)}},
 		{Except: v.ID, Msg: r.viewersMsg()},
-	}, nil
+	}, out...), nil
 }
 
 // Disconnect marks a Viewer whose connection dropped; Sweep removes them once the grace
@@ -83,12 +91,26 @@ func (r *Room) Sweep() []Delivery {
 // Leave removes a Viewer. Unknown ids are ignored.
 func (r *Room) Leave(viewerID string) []Delivery {
 	delete(r.gone, viewerID)
-	n := len(r.viewers)
-	r.viewers = slices.DeleteFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
-	if len(r.viewers) == n {
+	if !slices.ContainsFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID }) {
 		return nil
 	}
-	return []Delivery{{Msg: r.viewersMsg()}}
+	feed := r.record(viewerID, FeedEntry{Action: "leave"}) // while their Nickname is still known
+	r.viewers = slices.DeleteFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	return []Delivery{{Msg: r.viewersMsg()}, feed}
+}
+
+// record adds an Activity Feed entry by viewerID, stamped now, and returns it for everyone.
+// Every command that changes the Room calls it once it has succeeded.
+func (r *Room) record(viewerID string, e FeedEntry) Delivery {
+	e.At = r.now().UnixMilli()
+	if i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID }); i >= 0 {
+		e.Nickname = r.viewers[i].Nickname
+	}
+	r.feed = append(r.feed, e)
+	if len(r.feed) > MaxFeedEntries {
+		r.feed = r.feed[len(r.feed)-MaxFeedEntries:]
+	}
+	return Delivery{Msg: Feed{Type: "feed", Entry: e}}
 }
 
 func (r *Room) Viewers() []Viewer { return slices.Clone(r.viewers) }
@@ -117,23 +139,23 @@ func (r *Room) SetMedia(viewerID string, item MediaItem) []Delivery {
 	if err := validMediaItem(item); err != nil {
 		return reject(viewerID, err)
 	}
-	return r.update(viewerID, PlaybackState{MediaItem: &item, Rate: 1})
+	return r.update(viewerID, PlaybackState{MediaItem: &item, Rate: 1}, FeedEntry{Action: "setMedia", MediaItem: &item})
 }
 
 func (r *Room) Play(viewerID string, position float64) []Delivery {
-	return r.control(viewerID, position, true)
+	return r.control(viewerID, "play", position, true)
 }
 
 func (r *Room) Pause(viewerID string, position float64) []Delivery {
 	if r.state.MediaItem != nil && !r.state.Playing && r.state.Position == position {
 		return nil // e.g. every player reporting the end: only the first one counts
 	}
-	return r.control(viewerID, position, false)
+	return r.control(viewerID, "pause", position, false)
 }
 
 // Seek moves the position and keeps playing or paused as it was.
 func (r *Room) Seek(viewerID string, position float64) []Delivery {
-	return r.control(viewerID, position, r.state.Playing)
+	return r.control(viewerID, "seek", position, r.state.Playing)
 }
 
 // SetRate changes the speed for everyone. While playing, the position is first moved on to
@@ -150,10 +172,10 @@ func (r *Room) SetRate(viewerID string, rate float64) []Delivery {
 		s.Position += float64(r.now().UnixMilli()-s.UpdatedAt) / 1000 * s.Rate
 	}
 	s.Rate = rate
-	return r.update(viewerID, s)
+	return r.update(viewerID, s, FeedEntry{Action: "rate", Rate: rate})
 }
 
-func (r *Room) control(viewerID string, position float64, playing bool) []Delivery {
+func (r *Room) control(viewerID, action string, position float64, playing bool) []Delivery {
 	if r.state.MediaItem == nil {
 		return reject(viewerID, errors.New("Set a Media Item first"))
 	}
@@ -162,18 +184,19 @@ func (r *Room) control(viewerID string, position float64, playing bool) []Delive
 	}
 	s := r.state
 	s.Position, s.Playing = position, playing
-	return r.update(viewerID, s)
+	return r.update(viewerID, s, FeedEntry{Action: action, Position: &position})
 }
 
 func (r *Room) Ping(viewerID string, clientTime float64) []Delivery {
 	return []Delivery{{To: viewerID, Msg: Pong{Type: "pong", ClientTime: clientTime, ServerTime: r.now().UnixMilli()}}}
 }
 
-// update replaces the Playback State with a fresh updatedAt and tells everyone.
-func (r *Room) update(viewerID string, s PlaybackState) []Delivery {
+// update replaces the Playback State with a fresh updatedAt, records what happened in the
+// Activity Feed, and tells everyone.
+func (r *Room) update(viewerID string, s PlaybackState, e FeedEntry) []Delivery {
 	s.UpdatedAt = r.now().UnixMilli()
 	r.state = s
-	return []Delivery{{Msg: State{Type: "state", State: s, ByViewerID: viewerID}}}
+	return []Delivery{{Msg: State{Type: "state", State: s, ByViewerID: viewerID}}, r.record(viewerID, e)}
 }
 
 func reject(viewerID string, err error) []Delivery {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { RATES, type ClientMessage, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
+import { RATES, type ClientMessage, type FeedEntry, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
+import { ActivityFeed } from "./ActivityFeed";
 import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
@@ -30,6 +31,7 @@ export default function App() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewers, setViewers] = useState<Viewer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [feed, setFeed] = useState<FeedEntry[]>([]);
   const [playback, setPlaybackState] = useState<PlaybackState | null>(null);
   /** This Viewer's own copy of the current Local File, once chosen. */
   const [copy, setCopy] = useState<File | null>(null);
@@ -128,6 +130,7 @@ export default function App() {
           // Back in the same Media Item after a reconnect: keep the chosen copy.
           if (JSON.stringify(msg.state.mediaItem) !== JSON.stringify(playbackRef.current?.mediaItem)) setCopy(null);
           setPlayback(msg.state);
+          setFeed(msg.feed);
           ping();
           pinger = setInterval(ping, PING_EVERY_MS);
           break;
@@ -148,6 +151,9 @@ export default function App() {
           break;
         case "error":
           setError(msg.message);
+          break;
+        case "feed":
+          setFeed((f) => [...f, msg.entry].slice(-50)); // the server keeps 50 too
           break;
       }
     };
@@ -257,6 +263,7 @@ export default function App() {
           ))}
         </ul>
       </section>
+      <ActivityFeed entries={feed} />
     </main>
   );
 }
