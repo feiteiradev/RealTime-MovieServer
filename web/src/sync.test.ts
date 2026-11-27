@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { bestClockSample, clockSample, decideDrift, expectedPosition, follow } from "./sync";
+import { addClockSample, bestClockSample, CLOCK_SAMPLES, clockSample, decideDrift, expectedPosition, follow } from "./sync";
 import type { Player } from "./player/player";
 import type { PlaybackState } from "./protocol";
 
@@ -72,9 +72,20 @@ describe("clock offset", () => {
   test("the sample with the lowest round trip wins", () => {
     const slow = { rtt: 300, offset: 4_100 };
     const fast = { rtt: 40, offset: 3_990 };
-    expect(bestClockSample(null, slow)).toBe(slow);
-    expect(bestClockSample(slow, fast)).toBe(fast);
-    expect(bestClockSample(fast, slow)).toBe(fast);
+    expect(bestClockSample([])).toBeNull();
+    expect(bestClockSample([slow])).toBe(slow);
+    expect(bestClockSample([slow, fast])).toBe(fast);
+    expect(bestClockSample([fast, slow])).toBe(fast);
+  });
+
+  test("only the last 10 samples count: an old fast one ages out", () => {
+    const fast = { rtt: 40, offset: 3_990 };
+    let recent = addClockSample([], fast);
+    for (let i = 0; i < CLOCK_SAMPLES - 1; i++) recent = addClockSample(recent, { rtt: 300 + i, offset: 4_100 });
+    expect(bestClockSample(recent)).toBe(fast);
+    recent = addClockSample(recent, { rtt: 400, offset: 4_200 });
+    expect(recent).toHaveLength(CLOCK_SAMPLES);
+    expect(bestClockSample(recent)).toEqual({ rtt: 300, offset: 4_100 });
   });
 });
 

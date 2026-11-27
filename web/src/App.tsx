@@ -19,10 +19,10 @@ import type { Volume } from "./TransportControls";
 import { CopyCheck } from "./CopyCheck";
 import { Notice } from "./Notice";
 import { SetYouTubeLink } from "./SetYouTubeLink";
-import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
+import { addClockSample, bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
-/** Only the lowest-RTT ping is kept: a quick few after joining, then an occasional one. */
+/** The lowest-RTT of the recent pings sets the clock: a quick few after joining, then an occasional one. */
 const QUICK_PINGS = 5;
 const PING_EVERY_MS = 2000;
 const PING_SLOWLY_MS = 30_000;
@@ -71,7 +71,7 @@ export default function App() {
   const unmounted = useRef(false);
   const socket = useRef<WebSocket | null>(null);
   const playbackRef = useRef<PlaybackState | null>(null);
-  const clock = useRef<ClockSample | null>(null);
+  const clockSamples = useRef<ClockSample[]>([]);
   /** The file this Viewer just sent setMedia for; becomes their copy when the state comes back. */
   const settingFile = useRef<File | null>(null);
 
@@ -90,7 +90,7 @@ export default function App() {
     if (viewerId) send({ type: "status", status });
   }, [viewerId, status, reconnecting]); // a rejoin resets it to watching on the server
 
-  const offset = () => clock.current?.offset ?? 0;
+  const offset = () => bestClockSample(clockSamples.current)?.offset ?? 0;
   const send = (msg: ClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(msg));
   };
@@ -187,7 +187,7 @@ export default function App() {
           break;
         }
         case "pong":
-          clock.current = bestClockSample(clock.current, clockSample(msg.clientTime, msg.serverTime, Date.now()));
+          clockSamples.current = addClockSample(clockSamples.current, clockSample(msg.clientTime, msg.serverTime, Date.now()));
           break;
         case "error":
           settingFile.current = null; // our setMedia may have been the one rejected

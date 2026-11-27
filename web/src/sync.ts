@@ -40,7 +40,15 @@ export function clockSample(clientSent: number, serverTime: number, clientReceiv
   return { rtt: clientReceived - clientSent, offset: serverTime - (clientSent + clientReceived) / 2 };
 }
 
-/** Keeps the sample with the lowest round trip: it has the least room for error. */
-export function bestClockSample(best: ClockSample | null, sample: ClockSample): ClockSample {
-  return best && best.rtt <= sample.rtt ? best : sample;
+/** How many recent samples to choose from, so a clock that drifts since an old fast ping is still followed. */
+export const CLOCK_SAMPLES = 10;
+
+/** Adds sample to the recent ones, dropping the oldest beyond CLOCK_SAMPLES. */
+export function addClockSample(recent: ClockSample[], sample: ClockSample): ClockSample[] {
+  return [...recent, sample].slice(-CLOCK_SAMPLES);
+}
+
+/** The recent sample with the lowest round trip: it has the least room for error. */
+export function bestClockSample(recent: ClockSample[]): ClockSample | null {
+  return recent.reduce<ClockSample | null>((best, s) => (best && best.rtt <= s.rtt ? best : s), null);
 }
