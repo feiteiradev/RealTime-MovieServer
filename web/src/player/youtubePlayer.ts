@@ -72,6 +72,8 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
   // seekTo on a video that hasn't started yet also starts it; that play is ours, not the Viewer's.
   let ownSeekAt = -Infinity;
   let rate = 1; // likewise, the speed we last set
+  // A blocked autoplay goes straight to PAUSED; only a pause after real playback is the Viewer's.
+  let reachedPlaying = false;
 
   const p = await new Promise<YTPlayer>((resolve, reject) => {
     let ready = false;
@@ -99,6 +101,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
           if (!ready) return;
           const time = player.getCurrentTime();
           if (e.data === PLAYING) {
+            reachedPlaying = true;
             events.onBuffering(false);
             if (!playing && performance.now() - ownSeekAt < OWN_SEEK_PLAY_MS) {
               player.pauseVideo();
@@ -106,7 +109,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
               playing = true;
               events.onUserPlay(time);
             }
-          } else if (e.data === PAUSED && playing) {
+          } else if (e.data === PAUSED && playing && reachedPlaying) {
             playing = false;
             events.onUserPause(time);
           } else if (e.data === ENDED) {
@@ -130,6 +133,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
   return {
     play() {
       playing = true;
+      reachedPlaying = false;
       p.playVideo(); // blocked autoplay: the next sync tick tries again
     },
     pause() {
