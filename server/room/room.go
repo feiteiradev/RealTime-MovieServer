@@ -156,8 +156,8 @@ func (r *Room) Play(viewerID string, position float64) []Delivery {
 }
 
 func (r *Room) Pause(viewerID string, position float64) []Delivery {
-	if r.state.MediaItem != nil && !r.state.Playing && r.state.Position == position {
-		return nil // e.g. every player reporting the end: only the first one counts
+	if r.state.MediaItem != nil && !r.state.Playing && validPosition(position) == nil && math.Abs(r.state.Position-position) < 1 {
+		return nil // e.g. every player reporting the end, each at a slightly different time: only the first one counts
 	}
 	return r.control(viewerID, "pause", position, false)
 }

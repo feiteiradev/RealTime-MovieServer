@@ -39,9 +39,11 @@ func TestEveryPlayerReportingTheEndPausesOnceAtTheEnd(t *testing.T) {
 		expectState(t, c, ruiID, playbackState{Playing: false, Position: 600.5, Rate: 1, UpdatedAt: 601_500})
 	}
 
-	// The duplicate changed nothing, so nobody hears about it.
+	// The duplicates changed nothing, so nobody hears about them: Ana's player reports its
+	// end a little earlier, and a pause within a second of where the Room is paused is the same.
 	clock.ms.Store(601_600)
 	ana.send(map[string]any{"type": "pause", "position": 600.5})
+	ana.send(map[string]any{"type": "pause", "position": 599.7})
 	ana.send(map[string]any{"type": "ping", "clientTime": 1})
 	ana.expect("pong") // anything else (feed aside) means the Room spoke up
 }
