@@ -12,7 +12,7 @@ func statusOf(m message, viewerID string) string {
 }
 
 func TestViewersStartWatching(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	w := dial(t, srv).join("Ana")
 	if got := statusOf(w, w.ViewerID); got != "watching" {
 		t.Fatalf("status = %q, want watching", got)
@@ -20,7 +20,7 @@ func TestViewersStartWatching(t *testing.T) {
 }
 
 func TestStatusUpdatesReachEveryViewer(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	ana, rui := dial(t, srv), dial(t, srv)
 	ana.join("Ana")
 	ruiID := rui.join("Rui").ViewerID
@@ -37,7 +37,7 @@ func TestStatusUpdatesReachEveryViewer(t *testing.T) {
 }
 
 func TestInvalidStatusIsRejected(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	ana := dial(t, srv)
 	ana.join("Ana")
 

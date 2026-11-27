@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -16,13 +17,22 @@ import (
 	"github.com/coder/websocket"
 )
 
-func startServer(t *testing.T) *httptest.Server {
+// fakeClock is the injected server clock, in Unix milliseconds.
+type fakeClock struct{ ms atomic.Int64 }
+
+func (c *fakeClock) now() time.Time { return time.UnixMilli(c.ms.Load()) }
+
+func startClockedServer(t *testing.T, startMs int64) (*httptest.Server, *fakeClock) {
 	t.Helper()
+	clock := &fakeClock{}
+	clock.ms.Store(startMs)
 	static := fstest.MapFS{"index.html": {Data: []byte("<h1>Campfire</h1>")}}
-	srv := httptest.NewServer(transport.Handler(room.New(time.Now), static))
+	srv := httptest.NewServer(transport.Handler(room.New(clock.now), static))
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, clock
 }
+
+func wsURL(srv *httptest.Server) string { return "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws" }
 
 type client struct {
 	t    *testing.T
@@ -33,7 +43,7 @@ func dial(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	conn, _, err := websocket.Dial(ctx, wsURL(srv), nil)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -73,6 +83,9 @@ type mediaItem struct {
 	Duration float64 `json:"duration"`
 	VideoID  string  `json:"videoId"`
 }
+
+// movie is the Local File most tests set.
+var movie = mediaItem{Source: "local", Name: "movie.mp4", Size: 1234, Duration: 600.5}
 
 type playbackState struct {
 	MediaItem *mediaItem `json:"mediaItem"`
@@ -140,7 +153,7 @@ func statuses(m message) string {
 }
 
 func TestViewerJoinsAndIsWelcomed(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	ana := dial(t, srv)
 
 	w := ana.join("  Ana  ")
@@ -154,7 +167,7 @@ func TestViewerJoinsAndIsWelcomed(t *testing.T) {
 }
 
 func TestPresenceUpdatesWhenViewersJoinAndLeave(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	ana, rui := dial(t, srv), dial(t, srv)
 	ana.join("Ana")
 
@@ -173,7 +186,7 @@ func TestPresenceUpdatesWhenViewersJoinAndLeave(t *testing.T) {
 }
 
 func TestDuplicateNicknamesAreDistinctViewers(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	a1, a2 := dial(t, srv), dial(t, srv)
 	first := a1.join("Ana")
 	second := a2.join("Ana")
@@ -193,7 +206,7 @@ func TestInvalidNicknameIsRejected(t *testing.T) {
 		"too long":    strings.Repeat("a", 33),
 	} {
 		t.Run(name, func(t *testing.T) {
-			srv := startServer(t)
+			srv, _ := startClockedServer(t, 1_000)
 			watcher := dial(t, srv)
 			watcher.join("Mia")
 			bad := dial(t, srv)
@@ -213,15 +226,15 @@ func TestInvalidNicknameIsRejected(t *testing.T) {
 }
 
 func TestNicknameOf32CharactersIsAccepted(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	dial(t, srv).join(strings.Repeat("a", 32))
 }
 
 func TestCrossOriginWebSocketIsRefused(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", &websocket.DialOptions{
+	_, resp, err := websocket.Dial(ctx, wsURL(srv), &websocket.DialOptions{
 		HTTPHeader: http.Header{"Origin": {"https://evil.example"}},
 	})
 	if err == nil {
@@ -233,7 +246,7 @@ func TestCrossOriginWebSocketIsRefused(t *testing.T) {
 }
 
 func TestServesTheFrontend(t *testing.T) {
-	srv := startServer(t)
+	srv, _ := startClockedServer(t, 1_000)
 	resp, err := http.Get(srv.URL + "/")
 	if err != nil {
 		t.Fatal(err)

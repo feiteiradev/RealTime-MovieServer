@@ -2,32 +2,8 @@ package transport_test
 
 import (
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
-	"testing/fstest"
-	"time"
-
-	"campfire/room"
-	"campfire/transport"
 )
-
-// fakeClock is the injected server clock, in Unix milliseconds.
-type fakeClock struct{ ms atomic.Int64 }
-
-func (c *fakeClock) now() time.Time { return time.UnixMilli(c.ms.Load()) }
-
-func startClockedServer(t *testing.T, startMs int64) (*httptest.Server, *fakeClock) {
-	t.Helper()
-	clock := &fakeClock{}
-	clock.ms.Store(startMs)
-	srv := httptest.NewServer(transport.Handler(room.New(clock.now), fstest.MapFS{}))
-	t.Cleanup(srv.Close)
-	return srv, clock
-}
-
-func localFile(name string) map[string]any {
-	return map[string]any{"source": "local", "name": name, "size": 1234, "duration": 600.5}
-}
 
 func TestSetMediaReachesEveryViewerPausedAtZero(t *testing.T) {
 	srv, _ := startClockedServer(t, 1_000)
@@ -36,10 +12,10 @@ func TestSetMediaReachesEveryViewerPausedAtZero(t *testing.T) {
 	rui.join("Rui")
 	ana.expect("viewers")
 
-	ana.send(map[string]any{"type": "setMedia", "mediaItem": localFile("movie.mp4")})
+	ana.send(map[string]any{"type": "setMedia", "mediaItem": movie})
 
 	want := playbackState{
-		MediaItem: &mediaItem{Source: "local", Name: "movie.mp4", Size: 1234, Duration: 600.5},
+		MediaItem: &movie,
 		Playing:   false, Position: 0, Rate: 1, UpdatedAt: 1_000,
 	}
 	for _, c := range []*client{ana, rui} {
@@ -57,7 +33,7 @@ func movieNight(t *testing.T, srv *httptest.Server) (ana, rui *client, anaID, ru
 	anaID = ana.join("Ana").ViewerID
 	ruiID = rui.join("Rui").ViewerID
 	ana.expect("viewers")
-	ana.send(map[string]any{"type": "setMedia", "mediaItem": localFile("movie.mp4")})
+	ana.send(map[string]any{"type": "setMedia", "mediaItem": movie})
 	ana.expect("state")
 	rui.expect("state")
 	return
@@ -66,7 +42,7 @@ func movieNight(t *testing.T, srv *httptest.Server) (ana, rui *client, anaID, ru
 func expectState(t *testing.T, c *client, by string, want playbackState) {
 	t.Helper()
 	m := c.expect("state")
-	want.MediaItem = &mediaItem{Source: "local", Name: "movie.mp4", Size: 1234, Duration: 600.5}
+	want.MediaItem = &movie
 	if m.State == nil || !m.State.equal(want) || m.ByViewerID != by {
 		t.Fatalf("state = %+v by %q, want %+v by %q", m.State, m.ByViewerID, want, by)
 	}
@@ -116,7 +92,7 @@ func TestLateJoinerIsWelcomedWithTheCurrentState(t *testing.T) {
 	w := dial(t, srv).join("Mia")
 
 	want := playbackState{
-		MediaItem: &mediaItem{Source: "local", Name: "movie.mp4", Size: 1234, Duration: 600.5},
+		MediaItem: &movie,
 		Playing:   true, Position: 3, Rate: 1, UpdatedAt: 5_000,
 	}
 	if w.State == nil || !w.State.equal(want) {
@@ -176,7 +152,7 @@ func TestInvalidCommandsAreRejectedAndChangeNothing(t *testing.T) {
 
 			w := dial(t, srv).join("Mia")
 			want := playbackState{
-				MediaItem: &mediaItem{Source: "local", Name: "movie.mp4", Size: 1234, Duration: 600.5},
+				MediaItem: &movie,
 				Rate:      1, UpdatedAt: 1_000,
 			}
 			if !w.State.equal(want) {

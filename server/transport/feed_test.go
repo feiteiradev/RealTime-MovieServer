@@ -49,7 +49,7 @@ func TestEveryActionIsRecordedInTheActivityFeed(t *testing.T) {
 	expectFeed(t, ana, "2000 Rui join")
 
 	clock.ms.Store(3_000)
-	ana.send(map[string]any{"type": "setMedia", "mediaItem": localFile("movie.mp4")})
+	ana.send(map[string]any{"type": "setMedia", "mediaItem": movie})
 	for _, c := range []*client{ana, rui} {
 		c.expect("state")
 		expectFeed(t, c, "3000 Ana setMedia movie.mp4")
