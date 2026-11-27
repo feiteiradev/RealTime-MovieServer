@@ -1,0 +1,93 @@
+// The Local File Source: a <video> element fed from the Viewer's own copy (ADR-0001).
+import type { Player, PlayerEvents } from "./player";
+
+export const CANT_DECODE = "Your browser can't play this file, try an MP4 copy";
+
+/** Loads file into video and resolves once its metadata (duration) is known. */
+function load(video: HTMLVideoElement, file: File): Promise<void> {
+  return new Promise((resolve, reject) => {
+    video.addEventListener("loadedmetadata", () => resolve(), { once: true });
+    video.addEventListener("error", () => reject(new Error(CANT_DECODE)), { once: true });
+    video.src = URL.createObjectURL(file);
+  });
+}
+
+/** Reads a file's length in seconds without playing it, for setMedia. */
+export async function readDuration(file: File): Promise<number> {
+  const video = document.createElement("video");
+  video.preload = "metadata";
+  try {
+    await load(video, file);
+    return video.duration;
+  } finally {
+    URL.revokeObjectURL(video.src);
+  }
+}
+
+export async function createLocalFilePlayer(video: HTMLVideoElement, file: File, events: PlayerEvents): Promise<Player> {
+  await load(video, file);
+  const listening = new AbortController();
+  const on = (type: string, fn: () => void) => video.addEventListener(type, fn, { signal: listening.signal });
+
+  // Echo suppression: `playing` is the play/pause state we last asked for (or accepted from
+  // the Viewer), so a play/pause event that matches it is ours. A seeked after our own seek
+  // is ours too; overlapping seeks fire one seeked, so a flag (not a counter) is right.
+  let playing = false;
+  let ownSeek = false;
+
+  on("play", () => {
+    if (playing) return;
+    playing = true;
+    events.onUserPlay(video.currentTime);
+  });
+  on("pause", () => {
+    if (!playing || video.ended) return; // reaching the end is reported by "ended"
+    playing = false;
+    events.onUserPause(video.currentTime);
+  });
+  on("ended", () => {
+    playing = false;
+    events.onEnded(video.currentTime);
+  });
+  on("seeked", () => {
+    if (ownSeek) ownSeek = false;
+    else events.onUserSeek(video.currentTime);
+  });
+  on("waiting", () => events.onBuffering(true));
+  on("playing", () => events.onBuffering(false));
+  on("error", () => events.onError(CANT_DECODE));
+
+  return {
+    play() {
+      playing = true;
+      video.play().catch(() => {}); // blocked autoplay: the next sync tick tries again
+    },
+    pause() {
+      playing = false;
+      video.pause();
+    },
+    seek(position) {
+      ownSeek = true;
+      video.currentTime = position;
+    },
+    setRate(rate) {
+      if (video.playbackRate !== rate) video.playbackRate = rate;
+    },
+    setVolume(volume) {
+      video.volume = volume;
+    },
+    setMuted(muted) {
+      video.muted = muted;
+    },
+    currentTime: () => video.currentTime,
+    isPaused: () => video.paused,
+    supportsRate: true,
+    destroy() {
+      listening.abort();
+      video.pause();
+      URL.revokeObjectURL(video.src);
+      video.removeAttribute("src");
+      video.load();
+    },
+  };
+}
