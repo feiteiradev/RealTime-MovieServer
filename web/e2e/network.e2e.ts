@@ -45,6 +45,7 @@ test("a dropped Viewer reconnects on their own, with a badge meanwhile, and land
 
   await cut();
   await expect(rui.getByRole("status")).toContainText("Reconnecting");
+  await expect(ana.getByText("Rui · disconnected")).toBeVisible(); // held in place, not removed
   await video(ana).evaluate((v: HTMLVideoElement) => {
     v.currentTime = 10;
   });

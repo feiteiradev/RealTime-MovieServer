@@ -45,6 +45,7 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 	defer conn.CloseNow()
 
 	var viewerID string
+	var readErr error
 	defer func() {
 		if viewerID == "" {
 			return
@@ -55,12 +56,18 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 			return // already reclaimed by a newer connection
 		}
 		delete(h.conns, viewerID)
-		h.deliver(h.room.Disconnect(viewerID))
+		switch websocket.CloseStatus(readErr) {
+		case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+			h.deliver(h.room.Leave(viewerID)) // closed on purpose, e.g. the tab was closed
+		default:
+			h.deliver(h.room.Disconnect(viewerID)) // the network dropped: hold their place
+		}
 	}()
 
 	for {
 		_, data, err := conn.Read(req.Context())
 		if err != nil {
+			readErr = err
 			return
 		}
 		var envelope struct {
@@ -109,9 +116,17 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 			if m, ok := decode[room.SetMedia](conn, data); ok {
 				h.deliver(h.room.SetMedia(viewerID, m.MediaItem))
 			}
+		case "rate":
+			if m, ok := decode[room.Rate](conn, data); ok {
+				h.deliver(h.room.SetRate(viewerID, m.Rate))
+			}
 		case "ping":
 			if m, ok := decode[room.Ping](conn, data); ok {
 				h.deliver(h.room.Ping(viewerID, m.ClientTime))
+			}
+		case "status":
+			if m, ok := decode[room.Status](conn, data); ok {
+				h.deliver(h.room.SetStatus(viewerID, m.Status))
 			}
 		default:
 			sendError(conn, "Unknown message type "+envelope.Type)

@@ -159,8 +159,8 @@ func TestPresenceUpdatesWhenViewersJoinAndLeave(t *testing.T) {
 	}
 
 	rui.conn.Close(websocket.StatusNormalClosure, "bye")
-	if got := statuses(ana.expect("viewers")); got != "Ana:watching,Rui:disconnected" {
-		t.Fatalf("Ana sees %v after Rui's connection drops, want Rui disconnected", got)
+	if got := statuses(ana.expect("viewers")); got != "Ana:watching" {
+		t.Fatalf("Ana sees %v after Rui closes the Room, want just Ana", got)
 	}
 }
 

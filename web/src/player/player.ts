@@ -28,6 +28,7 @@ export interface PlayerEvents {
   onUserPlay(position: number): void;
   onUserPause(position: number): void;
   onUserSeek(position: number): void;
+  onUserRate(rate: number): void;
   onBuffering(buffering: boolean): void;
   onEnded(position: number): void;
   /** A readable message for the Viewer, e.g. the file can't be decoded. */

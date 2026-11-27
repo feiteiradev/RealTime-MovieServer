@@ -93,6 +93,20 @@ func (r *Room) Leave(viewerID string) []Delivery {
 
 func (r *Room) Viewers() []Viewer { return slices.Clone(r.viewers) }
 
+// SetStatus records a Viewer's own status and tells everyone. Clients may not claim
+// "disconnected"; the server sets that.
+func (r *Room) SetStatus(viewerID, status string) []Delivery {
+	if status != "watching" && status != "buffering" && status != "needsFile" {
+		return reject(viewerID, errors.New("Status must be watching, buffering or needsFile"))
+	}
+	i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	if i < 0 {
+		return nil
+	}
+	r.viewers[i].Status = status
+	return []Delivery{{Msg: r.viewersMsg()}}
+}
+
 func (r *Room) viewersMsg() Viewers { return Viewers{Type: "viewers", Viewers: r.Viewers()} }
 
 // Shared Controls and setMedia: each returns the new state for everyone, or, if the
@@ -120,6 +134,23 @@ func (r *Room) Pause(viewerID string, position float64) []Delivery {
 // Seek moves the position and keeps playing or paused as it was.
 func (r *Room) Seek(viewerID string, position float64) []Delivery {
 	return r.control(viewerID, position, r.state.Playing)
+}
+
+// SetRate changes the speed for everyone. While playing, the position is first moved on to
+// now at the old speed, so the new speed counts from here.
+func (r *Room) SetRate(viewerID string, rate float64) []Delivery {
+	if r.state.MediaItem == nil {
+		return reject(viewerID, errors.New("Set a Media Item first"))
+	}
+	if !slices.Contains(Rates, rate) {
+		return reject(viewerID, errors.New("Speed must be 0.5, 0.75, 1, 1.25, 1.5 or 2"))
+	}
+	s := r.state
+	if s.Playing {
+		s.Position += float64(r.now().UnixMilli()-s.UpdatedAt) / 1000 * s.Rate
+	}
+	s.Rate = rate
+	return r.update(viewerID, s)
 }
 
 func (r *Room) control(viewerID string, position float64, playing bool) []Delivery {
