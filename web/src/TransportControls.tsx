@@ -8,9 +8,12 @@ const VOLUME_STEP = 0.1;
 type Action = "toggle" | "back" | "forward" | "louder" | "quieter";
 const KEYS: Record<string, Action> = { " ": "toggle", ArrowLeft: "back", ArrowRight: "forward", ArrowUp: "louder", ArrowDown: "quieter" };
 
-/** The shortcut for a key, or null while the Viewer is typing in a field. */
-export function shortcut(key: string, target: { tagName: string; isContentEditable: boolean } | null): Action | null {
+type Target = { tagName: string; isContentEditable: boolean; role?: string | null };
+
+/** The shortcut for a key, or null while the Viewer is typing in a field or pressing a focused button with Space. */
+export function shortcut(key: string, target: Target | null): Action | null {
   if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return null;
+  if (key === " " && target && (["BUTTON", "A"].includes(target.tagName) || target.role === "button")) return null;
   return KEYS[key] ?? null;
 }
 

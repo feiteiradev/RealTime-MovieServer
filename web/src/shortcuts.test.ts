@@ -17,4 +17,12 @@ describe("shortcut", () => {
     for (const tagName of ["INPUT", "TEXTAREA", "SELECT"]) expect(shortcut(" ", { tagName, isContentEditable: false })).toBeNull();
     expect(shortcut("ArrowLeft", { tagName: "DIV", isContentEditable: true })).toBeNull();
   });
+
+  test("Space on a focused button or link presses it instead", () => {
+    for (const tagName of ["BUTTON", "A"]) {
+      expect(shortcut(" ", { tagName, isContentEditable: false })).toBeNull();
+      expect(shortcut("ArrowRight", { tagName, isContentEditable: false })).toBe("forward");
+    }
+    expect(shortcut(" ", { tagName: "DIV", isContentEditable: false, role: "button" })).toBeNull();
+  });
 });
