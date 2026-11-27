@@ -68,6 +68,7 @@ type mediaItem struct {
 	Name     string  `json:"name"`
 	Size     int64   `json:"size"`
 	Duration float64 `json:"duration"`
+	VideoID  string  `json:"videoId"`
 }
 
 type playbackState struct {

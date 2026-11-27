@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"math"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -115,10 +116,17 @@ func validMediaItem(item MediaItem) error {
 			return errors.New("A Local File needs a name, a size and a duration")
 		}
 		return nil
+	case "youtube":
+		if !youtubeVideoID.MatchString(item.VideoID) {
+			return errors.New("A YouTube video needs an 11-character videoId")
+		}
+		return nil
 	default:
 		return errors.New("Unknown Source " + item.Source)
 	}
 }
+
+var youtubeVideoID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 func validPosition(seconds float64) error {
 	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 {

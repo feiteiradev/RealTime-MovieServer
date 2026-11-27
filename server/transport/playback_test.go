@@ -158,6 +158,12 @@ func TestInvalidCommandsAreRejectedAndChangeNothing(t *testing.T) {
 			"source": "local", "name": "a.mp4", "size": -1, "duration": 1}},
 		"Local File no duration": {"type": "setMedia", "mediaItem": map[string]any{
 			"source": "local", "name": "a.mp4", "size": 1, "duration": 0}},
+		"YouTube no videoId":    {"type": "setMedia", "mediaItem": map[string]any{"source": "youtube"}},
+		"YouTube short videoId": {"type": "setMedia", "mediaItem": map[string]any{"source": "youtube", "videoId": "dQw4w9WgXc"}},
+		"YouTube bad characters": {"type": "setMedia", "mediaItem": map[string]any{
+			"source": "youtube", "videoId": "dQw4w9WgX/Q"}},
+		"YouTube URL as videoId": {"type": "setMedia", "mediaItem": map[string]any{
+			"source": "youtube", "videoId": "https://youtu.be/dQw4w9WgXcQ"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv, _ := startClockedServer(t, 1_000)
@@ -203,5 +209,24 @@ func TestLastChangeReceivedWins(t *testing.T) {
 	}
 	if a1.State.Playing == a2.State.Playing {
 		t.Fatalf("both states have playing=%v; want one play and one pause", a1.State.Playing)
+	}
+}
+
+func TestSetMediaAcceptsAYouTubeVideo(t *testing.T) {
+	srv, clock := startClockedServer(t, 1_000)
+	ana, rui, anaID, _ := movieNight(t, srv)
+	ana.send(map[string]any{"type": "play", "position": 30})
+	ana.expect("state")
+	rui.expect("state")
+	clock.ms.Store(5_000)
+
+	ana.send(map[string]any{"type": "setMedia", "mediaItem": map[string]any{"source": "youtube", "videoId": "dQw4w9WgXcQ"}})
+
+	want := playbackState{MediaItem: &mediaItem{Source: "youtube", VideoID: "dQw4w9WgXcQ"}, Rate: 1, UpdatedAt: 5_000}
+	for _, c := range []*client{ana, rui} {
+		m := c.expect("state")
+		if m.State == nil || !m.State.equal(want) || m.ByViewerID != anaID {
+			t.Fatalf("state = %+v by %q, want %+v by Ana", m.State, m.ByViewerID, want)
+		}
 	}
 }
