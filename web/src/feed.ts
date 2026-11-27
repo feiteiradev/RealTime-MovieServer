@@ -23,7 +23,9 @@ export function describeEntry(e: FeedEntry): string {
     case "seek":
       return `${e.nickname} jumped to ${at}`;
     case "setMedia":
-      return `${e.nickname} set ${e.mediaItem?.name}`;
+      return e.mediaItem?.source === "youtube"
+        ? `${e.nickname} set a YouTube video`
+        : `${e.nickname} set ${e.mediaItem?.name}`;
     case "rate":
       return `${e.nickname} set speed to ${e.rate}×`;
   }
