@@ -173,17 +173,24 @@ export default function App() {
         case "viewers":
           setViewers(msg.viewers);
           break;
-        case "state":
+        case "state": {
+          const f = settingFile.current;
+          const m = msg.state.mediaItem;
+          const isNew = !sameItem(m, playbackRef.current?.mediaItem);
           setPlayback(msg.state);
-          if (msg.byViewerId === me && settingFile.current) {
-            setCopy(settingFile.current); // the setter's file is their copy (set after setPlayback's clear)
+          if (f && msg.byViewerId === me && m?.source === "local" && m.name === f.name && m.size === f.size) {
+            setCopy(f); // the setter's file is their copy (set after setPlayback's clear)
             settingFile.current = null;
+          } else if (f && isNew && msg.byViewerId !== me) {
+            settingFile.current = null; // someone else's Media Item replaced ours (an earlier one of ours may still be in flight)
           }
           break;
+        }
         case "pong":
           clock.current = bestClockSample(clock.current, clockSample(msg.clientTime, msg.serverTime, Date.now()));
           break;
         case "error":
+          settingFile.current = null; // our setMedia may have been the one rejected
           setError(msg.message);
           break;
         case "feed":
