@@ -50,17 +50,17 @@ export function TransportControls({ player, playback, events }: Props) {
   }, []);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <button type="button" className="rounded border px-2" onClick={() => jump(-JUMP_SECONDS)} aria-label="Back 10 seconds">
+    <div role="group" aria-label="Playback controls" className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-2 text-[13px] text-muted">
+      <button type="button" className="btn grow font-mono sm:grow-0" onClick={() => jump(-JUMP_SECONDS)} aria-label="Back 10 seconds">
         −10 s
       </button>
-      <button type="button" className="rounded border px-2" onClick={() => jump(JUMP_SECONDS)} aria-label="Forward 10 seconds">
+      <button type="button" className="btn grow font-mono sm:grow-0" onClick={() => jump(JUMP_SECONDS)} aria-label="Forward 10 seconds">
         +10 s
       </button>
-      <label className="flex items-center gap-1" title={player.supportsRate ? undefined : "Not supported for this source"}>
+      <label className="flex items-center gap-2 has-disabled:text-[#8a857c]" title={player.supportsRate ? undefined : "Not supported for this source"}>
         Speed
         <select
-          className="rounded border"
+          className="h-11 rounded-lg border border-edge bg-raised px-2.5 text-sm text-ink disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-[#8a857c]"
           value={playback.rate}
           disabled={!player.supportsRate}
           onChange={(e) => events.onUserRate(Number(e.target.value))}
@@ -71,14 +71,24 @@ export function TransportControls({ player, playback, events }: Props) {
             </option>
           ))}
         </select>
+        {!player.supportsRate && <span>Not supported for this source</span>}
       </label>
-      <label className="flex items-center gap-1">
+      <label className="flex min-w-40 flex-1 items-center gap-2 sm:justify-end">
         Volume
-        <input type="range" min={0} max={1} step={VOLUME_STEP} value={volume} onChange={(e) => changeVolume(Number(e.target.value))} />
+        <input
+          type="range"
+          className="h-11 w-full max-w-32 cursor-pointer accent-ember"
+          min={0}
+          max={1}
+          step={VOLUME_STEP}
+          value={volume}
+          onChange={(e) => changeVolume(Number(e.target.value))}
+        />
       </label>
-      <label className="flex items-center gap-1">
+      <label className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-edge px-3 text-ink">
         <input
           type="checkbox"
+          className="size-4 cursor-pointer accent-ember"
           checked={muted}
           onChange={(e) => {
             setMuted(e.target.checked);

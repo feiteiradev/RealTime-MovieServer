@@ -62,8 +62,8 @@ export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
   }, [playback]);
 
   return (
-    <div className="flex flex-col gap-2" hidden={failed}>
-      <div ref={container} className="aspect-video w-full [&>iframe]:h-full [&>iframe]:w-full" />
+    <div className="flex flex-col gap-3" hidden={failed}>
+      <div ref={container} className="aspect-video w-full overflow-hidden rounded-xl border border-line bg-black [&>iframe]:h-full [&>iframe]:w-full" />
       {ready && <TransportControls player={ready} playback={playback} events={events} />}
     </div>
   );

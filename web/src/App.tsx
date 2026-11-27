@@ -5,6 +5,7 @@ import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
 import { CopyCheck } from "./CopyCheck";
+import { Notice } from "./Notice";
 import { SetYouTubeLink } from "./SetYouTubeLink";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
@@ -18,6 +19,12 @@ const STATUS_LABEL: Record<Viewer["status"], string> = {
   buffering: "buffering",
   needsFile: "needs file",
   disconnected: "disconnected",
+};
+const STATUS_DOT: Record<Viewer["status"], string> = {
+  watching: "bg-ok",
+  buffering: "bg-warn",
+  needsFile: "ring-[1.5px] ring-inset ring-muted",
+  disconnected: "bg-edge",
 };
 
 function savedNickname(): string {
@@ -189,93 +196,138 @@ export default function App() {
 
   if (!viewerId) {
     return (
-      <main className="mx-auto max-w-sm p-4">
-        <h1 className="mb-4 text-2xl font-bold">Campfire</h1>
-        <form onSubmit={join} className="flex flex-col gap-2">
-          <label htmlFor="nickname">Nickname</label>
-          <input
-            id="nickname"
-            className="rounded border p-2"
-            value={nickname}
-            maxLength={32}
-            required
-            autoFocus
-            onChange={(e) => setNickname(e.target.value)}
-          />
-          {error && (
-            <p role="alert" className="text-red-700">
-              {error}
-            </p>
-          )}
-          <button type="submit" className="rounded border p-2">
-            Join
-          </button>
-        </form>
+      <main className="flex min-h-dvh items-center justify-center px-4 py-6">
+        <div className="flex w-full max-w-90 flex-col gap-8">
+          <div className="flex flex-col gap-2.5">
+            <Brand size="lg" />
+            <p className="text-base/relaxed text-muted">Watch together, in step. Pick the name the others will see.</p>
+          </div>
+          <form onSubmit={join} className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="nickname" className="text-[13px] font-medium text-soft">
+                Nickname
+              </label>
+              <input
+                id="nickname"
+                className="field h-12"
+                value={nickname}
+                maxLength={32}
+                required
+                autoFocus
+                autoComplete="nickname"
+                onChange={(e) => setNickname(e.target.value)}
+              />
+            </div>
+            {error && <Notice tone="danger">{error}</Notice>}
+            <button type="submit" className="btn btn-primary h-12 text-[15px]">
+              Join
+            </button>
+          </form>
+        </div>
       </main>
     );
   }
 
   const item = playback?.mediaItem;
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold">
-        Campfire
-        {reconnecting && (
-          <span role="status" className="ml-2 rounded bg-amber-200 px-2 py-0.5 align-middle text-sm font-normal text-amber-900">
-            Reconnecting… your controls aren't reaching anyone
-          </span>
-        )}
-      </h1>
-      <section aria-labelledby="now-playing" className="flex flex-col gap-2">
-        <h2 id="now-playing" className="font-semibold">
-          Now playing
-        </h2>
-        {!item && <p>The Room is empty. Add something to watch: set a Local File or a YouTube link below.</p>}
-        {item?.source === "youtube" && playback && (
-          <YouTubePlayer videoId={item.videoId} playback={playback} offset={offset} events={playerEvents} />
-        )}
-        {item?.source === "local" && !copy && (
-          <label className="flex flex-col gap-1">
-            Choose your copy of {item.name}
-            <input type="file" accept="video/*,audio/*" onChange={chooseCopy} />
-          </label>
-        )}
-        {item?.source === "local" && copy && playback && (
-          <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
-        )}
-        {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
-        <label className="flex flex-col gap-1">
-          Set a Local File
-          <input type="file" accept="video/*,audio/*" onChange={setLocalFile} />
-        </label>
-        <SetYouTubeLink
-          onSet={(videoId) => {
-            setError(null);
-            send({ type: "setMedia", mediaItem: { source: "youtube", videoId } });
-          }}
-          onError={setError}
-        />
-        {error && (
-          <p role="alert" className="text-red-700">
-            {error}
-          </p>
-        )}
-      </section>
-      <section aria-labelledby="presence">
-        <h2 id="presence" className="font-semibold">
-          In the Room ({viewers.length})
-        </h2>
-        <ul>
-          {viewers.map((v) => (
-            <li key={v.id}>
-              {v.nickname}
-              {v.id === viewerId && " (you)"}
-              {` · ${STATUS_LABEL[v.status] ?? v.status}`}
-            </li>
-          ))}
-        </ul>
-      </section>
-      <ActivityFeed entries={feed} />
-    </main>
+    <div className="min-h-dvh">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-310 flex-wrap items-center justify-between gap-x-3 gap-y-2.5 px-4 py-3.5 sm:px-6">
+          <h1>
+            <Brand />
+          </h1>
+          {reconnecting && (
+            <span
+              role="status"
+              className="inline-flex items-center gap-2 rounded-full border border-[#5a4520] bg-warn-bg px-3 py-1.5 text-[13px] font-medium text-warn"
+            >
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-warn motion-safe:animate-pulse" />
+              Reconnecting… your controls aren't reaching anyone
+            </span>
+          )}
+        </div>
+      </header>
+      <main className="mx-auto grid max-w-310 gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section aria-labelledby="now-playing" className="flex min-w-0 flex-col gap-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="now-playing" className="heading">
+              Now playing
+            </h2>
+            {item?.source === "local" && <span className="truncate font-mono text-[13px] text-muted">{item.name}</span>}
+          </div>
+          {!item && (
+            <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-edge bg-surface/60 p-5 text-center">
+              <p className="text-base font-medium">The Room is empty.</p>
+              <p className="max-w-72 text-sm text-muted">Add something to watch: set a Local File or a YouTube link below.</p>
+            </div>
+          )}
+          {item?.source === "youtube" && playback && (
+            <YouTubePlayer videoId={item.videoId} playback={playback} offset={offset} events={playerEvents} />
+          )}
+          {item?.source === "local" && !copy && (
+            <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface p-5 text-center">
+              <p className="max-w-80 text-sm text-muted">Each Viewer plays their own copy of a Local File. Nothing is uploaded.</p>
+              <label className="btn btn-primary file-btn max-w-full">
+                <span className="truncate">Choose your copy of {item.name}</span>
+                <input type="file" accept="video/*,audio/*" className="sr-only" onChange={chooseCopy} />
+              </label>
+            </div>
+          )}
+          {item?.source === "local" && copy && playback && (
+            <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
+          )}
+          {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
+          {error && <Notice tone="danger">{error}</Notice>}
+          <div className="flex flex-col gap-2 pt-2">
+            <h3 className="heading">Put something on</h3>
+            <div className="flex flex-wrap items-end gap-2">
+              <SetYouTubeLink
+                onSet={(videoId) => {
+                  setError(null);
+                  send({ type: "setMedia", mediaItem: { source: "youtube", videoId } });
+                }}
+                onError={setError}
+              />
+              <label className="btn file-btn grow border-dashed sm:grow-0">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 16V4M6 10l6-6 6 6M4 20h16" />
+                </svg>
+                Set a Local File
+                <input type="file" accept="video/*,audio/*" className="sr-only" onChange={setLocalFile} />
+              </label>
+            </div>
+          </div>
+        </section>
+        <aside className="flex min-w-0 flex-col gap-6">
+          <section aria-labelledby="presence" className="flex flex-col gap-2.5">
+            <h2 id="presence" className="heading">
+              In the Room ({viewers.length})
+            </h2>
+            <ul className="divide-y divide-raised rounded-xl border border-line bg-surface">
+              {viewers.map((v) => (
+                <li key={v.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${STATUS_DOT[v.status] ?? "bg-edge"}`} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {v.nickname}
+                    {v.id === viewerId && " (you)"}
+                  </span>
+                  <span className="text-[13px] text-muted">{` · ${STATUS_LABEL[v.status] ?? v.status}`}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <ActivityFeed entries={feed} />
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+function Brand({ size }: { size?: "lg" }) {
+  return (
+    <span className={`flex items-center gap-2.5 font-semibold tracking-tight ${size === "lg" ? "text-[28px]" : "text-base"}`}>
+      <span aria-hidden="true" className="size-2.5 rounded-full bg-ember shadow-[0_0_14px_var(--color-ember)]" />
+      Campfire
+    </span>
   );
 }

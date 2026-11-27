@@ -29,7 +29,7 @@ export function LocalFilePlayer({ file, playback, offset, events }: Props) {
     const video = document.createElement("video");
     video.controls = true;
     video.setAttribute("aria-label", file.name);
-    video.className = "w-full rounded bg-black";
+    video.className = "aspect-video w-full rounded-xl border border-line bg-black";
     container.current!.appendChild(video);
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -58,7 +58,7 @@ export function LocalFilePlayer({ file, playback, offset, events }: Props) {
   }, [playback]);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div ref={container} />
       {ready && <TransportControls player={ready} playback={playback} events={events} />}
     </div>

@@ -1,1 +1,65 @@
 @import "tailwindcss";
+
+/* Campfire: warm charcoal ground, one ember accent (comps: Campfire Join / Room). */
+@theme {
+  --color-ground: #121110;
+  --color-surface: #1a1917;
+  --color-raised: #23211e;
+  --color-line: #2e2b27;
+  --color-edge: #3f3a35;
+  --color-ink: #edeae4;
+  --color-soft: #cfcac1;
+  --color-muted: #a39e95;
+  --color-ember: #f08a4b;
+  --color-ember-hover: #f39d68;
+  --color-ember-ink: #1a0f08;
+  --color-warn: #e8c27a;
+  --color-warn-bg: #2a2113;
+  --color-danger: #f5a497;
+  --color-danger-bg: #2a1714;
+  --color-ok: #7cc79a;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-ground font-sans text-ink antialiased;
+  }
+  /* One focus ring everywhere: 2 px ember, 2 px off the control, never animated. */
+  :focus-visible {
+    outline: 2px solid var(--color-ember);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-edge bg-raised px-4 text-sm font-medium text-ink transition-[background-color,border-color,translate,scale] duration-150 ease-(--ease-ui) hover:border-muted hover:bg-line active:translate-y-px active:scale-[.985] active:duration-[90ms];
+  }
+  .btn-primary {
+    @apply border-transparent bg-ember font-semibold text-ember-ink hover:border-transparent hover:bg-ember-hover;
+  }
+  .field {
+    @apply h-11 min-w-0 rounded-lg border border-edge bg-surface px-3 text-base text-ink transition-[border-color,box-shadow] duration-[140ms] placeholder:text-muted focus-visible:border-ember focus-visible:shadow-[0_0_0_3px_rgb(240_138_75/0.25)];
+  }
+  /* A file input hidden behind a button-looking label: the ring follows the input's focus. */
+  .file-btn:has(:focus-visible) {
+    outline: 2px solid var(--color-ember);
+    outline-offset: 2px;
+  }
+  .heading {
+    @apply text-[13px] font-medium text-muted;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active {
+    translate: none;
+    scale: none;
+  }
+}

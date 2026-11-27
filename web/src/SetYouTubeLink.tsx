@@ -14,17 +14,20 @@ export function SetYouTubeLink({ onSet, onError }: { onSet: (videoId: string) =>
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-1">
-      <label htmlFor="youtube-link">Set a YouTube link</label>
+    <form onSubmit={submit} className="flex min-w-0 flex-[1_1_20rem] flex-col gap-1.5">
+      <label htmlFor="youtube-link" className="text-[13px] font-medium text-soft">
+        Set a YouTube link
+      </label>
       <div className="flex gap-2">
         <input
           id="youtube-link"
-          className="flex-1 rounded border p-2"
+          className="field flex-1"
           value={link}
-          placeholder="https://www.youtube.com/watch?v=…"
+          inputMode="url"
+          placeholder="https://youtu.be/…"
           onChange={(e) => setLink(e.target.value)}
         />
-        <button type="submit" className="rounded border p-2">
+        <button type="submit" className="btn btn-primary">
           Play
         </button>
       </div>
