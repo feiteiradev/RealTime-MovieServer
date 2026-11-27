@@ -23,7 +23,8 @@ export type PlaybackState = {
 };
 
 export type ClientMessage =
-  | { type: "join"; nickname: string }
+  /** viewerId is set on a reconnect, to reclaim the same presence entry. */
+  | { type: "join"; nickname: string; viewerId?: string }
   | { type: "play"; position: number }
   | { type: "pause"; position: number }
   | { type: "seek"; position: number }

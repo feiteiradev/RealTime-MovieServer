@@ -7,6 +7,8 @@ import { bestClockSample, clockSample, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
 const PING_EVERY_MS = 2000;
+/** Reconnect backoff: 0.5 s, 1 s, 2 s … up to 10 s between tries. */
+const reconnectDelay = (attempt: number) => Math.min(500 * 2 ** attempt, 10_000);
 
 function savedNickname(): string {
   try {
@@ -24,16 +26,27 @@ export default function App() {
   const [playback, setPlaybackState] = useState<PlaybackState | null>(null);
   /** This Viewer's own copy of the current Local File, once chosen. */
   const [copy, setCopy] = useState<File | null>(null);
+  /** The socket dropped and we're trying to get back in; controls reach nobody meanwhile. */
+  const [reconnecting, setReconnecting] = useState(false);
+  const unmounted = useRef(false);
   const socket = useRef<WebSocket | null>(null);
   const playbackRef = useRef<PlaybackState | null>(null);
   const clock = useRef<ClockSample | null>(null);
   /** The file this Viewer just sent setMedia for; becomes their copy when the state comes back. */
   const settingFile = useRef<File | null>(null);
 
-  useEffect(() => () => socket.current?.close(), []);
+  useEffect(
+    () => () => {
+      unmounted.current = true;
+      socket.current?.close();
+    },
+    [],
+  );
 
   const offset = () => clock.current?.offset ?? 0;
-  const send = (msg: ClientMessage) => socket.current?.send(JSON.stringify(msg));
+  const send = (msg: ClientMessage) => {
+    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(msg));
+  };
   const setPlayback = (s: PlaybackState) => {
     playbackRef.current = s;
     setPlaybackState(s);
@@ -67,22 +80,32 @@ export default function App() {
     } catch {
       // Storage blocked: the Nickname just won't be pre-filled next time.
     }
+    connect(nickname, null, 0);
+  }
+
+  // Opens the socket and joins; if it drops after joining, rejoins as previousId with backoff.
+  function connect(name: string, previousId: string | null, attempt: number) {
     socket.current?.close();
     const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
     socket.current = ws;
-    let me = "";
+    let me = previousId ?? "";
+    let joined = false;
     let pinger: ReturnType<typeof setInterval> | undefined;
     const ping = () => send({ type: "ping", clientTime: Date.now() });
-    ws.onopen = () => send({ type: "join", nickname });
+    ws.onopen = () =>
+      send(previousId ? { type: "join", nickname: name, viewerId: previousId } : { type: "join", nickname: name });
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerMessage;
       switch (msg.type) {
         case "welcome":
           me = msg.viewerId;
+          joined = true;
+          setReconnecting(false);
           setViewerId(msg.viewerId);
           setViewers(msg.viewers);
+          // Back in the same Media Item after a reconnect: keep the chosen copy.
+          if (JSON.stringify(msg.state.mediaItem) !== JSON.stringify(playbackRef.current?.mediaItem)) setCopy(null);
           setPlayback(msg.state);
-          setCopy(null);
           ping();
           pinger = setInterval(ping, PING_EVERY_MS);
           break;
@@ -108,7 +131,10 @@ export default function App() {
     };
     ws.onclose = () => {
       clearInterval(pinger);
-      if (socket.current === ws) setViewerId(null);
+      if (socket.current !== ws || unmounted.current) return; // replaced or closed on purpose
+      if (!me) return setViewerId(null); // never got in: back to the join form
+      setReconnecting(true);
+      setTimeout(() => connect(name, me, joined ? 0 : attempt + 1), reconnectDelay(joined ? 0 : attempt));
     };
   }
 
@@ -162,12 +188,19 @@ export default function App() {
   const item = playback?.mediaItem;
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold">Campfire</h1>
+      <h1 className="text-2xl font-bold">
+        Campfire
+        {reconnecting && (
+          <span role="status" className="ml-2 rounded bg-amber-200 px-2 py-0.5 align-middle text-sm font-normal text-amber-900">
+            Reconnecting… your controls aren't reaching anyone
+          </span>
+        )}
+      </h1>
       <section aria-labelledby="now-playing" className="flex flex-col gap-2">
         <h2 id="now-playing" className="font-semibold">
           Now playing
         </h2>
-        {!item && <p>Nothing playing yet. Set a Local File to start.</p>}
+        {!item && <p>The Room is empty. Add something to watch: set a Local File below.</p>}
         {item && !copy && (
           <label className="flex flex-col gap-1">
             Choose your copy of {item.name}
