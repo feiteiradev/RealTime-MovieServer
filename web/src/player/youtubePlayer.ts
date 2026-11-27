@@ -165,10 +165,9 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
     },
     currentTime: () => p.getCurrentTime(),
     duration: () => p.getDuration(),
-    isPaused: () => {
-      const s = p.getPlayerState();
-      return s !== PLAYING && s !== BUFFERING;
-    },
+    // Buffering counts as paused: after the Viewer clicks play, YouTube buffers before PLAYING
+    // reports their play, and follow() must not pause it in between.
+    isPaused: () => p.getPlayerState() !== PLAYING,
     isBuffering: () => p.getPlayerState() === BUFFERING,
     supportsRate: true,
     destroy() {
