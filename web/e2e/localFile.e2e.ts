@@ -1,0 +1,70 @@
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import path from "node:path";
+
+// 20 s, 160×90 VP9 in MP4 (Playwright's Chromium has no H.264), a keyframe every second.
+const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4");
+const THRESHOLD = 1; // seconds of Drift the Room tolerates
+
+// Each Viewer gets its own browser context; close them so they leave the Room before the next test.
+test.afterEach(async ({ browser }) => {
+  await Promise.all(browser.contexts().map((c) => c.close()));
+});
+
+async function joinAs(browser: Browser, nickname: string): Promise<Page> {
+  const page = await (await browser.newContext()).newPage();
+  await page.goto("/");
+  await page.getByLabel("Nickname").fill(nickname);
+  await page.getByRole("button", { name: "Join" }).click();
+  await expect(page.getByRole("heading", { name: /In the Room/ })).toBeVisible();
+  return page;
+}
+
+const video = (page: Page) => page.locator("video");
+const time = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
+const paused = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.paused);
+const gap = async (a: Page, b: Page) => Math.abs((await time(a)) - (await time(b)));
+
+// The Viewer's own actions go straight to the <video>, as its native controls would.
+const userPlay = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.play());
+const userPause = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.pause());
+const userSeek = (page: Page, to: number) =>
+  video(page).evaluate((v: HTMLVideoElement, t) => {
+    v.currentTime = t;
+  }, to);
+
+test("Viewers watch a Local File together: play, seek and pause follow, late joiners land in sync", async ({ browser }) => {
+  const ana = await joinAs(browser, "Ana");
+  const rui = await joinAs(browser, "Rui");
+
+  await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
+  await rui.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);
+  await expect(video(ana)).toBeVisible();
+  await expect(video(rui)).toBeVisible();
+
+  await userPlay(ana);
+  await expect.poll(() => paused(rui)).toBe(false);
+  await expect.poll(() => gap(ana, rui)).toBeLessThan(THRESHOLD);
+
+  await userSeek(rui, 12);
+  await expect.poll(() => time(ana)).toBeGreaterThanOrEqual(12 - THRESHOLD);
+  await expect.poll(() => gap(ana, rui)).toBeLessThan(THRESHOLD);
+  expect(await paused(ana)).toBe(false);
+
+  // A late joiner sees the prompt while the Room keeps playing, then lands in sync.
+  const mia = await joinAs(browser, "Mia");
+  await expect(mia.getByText("Choose your copy of movie.mp4")).toBeVisible();
+  expect(await paused(ana)).toBe(false);
+  await mia.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);
+  await expect.poll(() => paused(mia)).toBe(false);
+  await expect.poll(() => gap(ana, mia)).toBeLessThan(THRESHOLD);
+
+  await userPause(ana);
+  for (const viewer of [rui, mia]) {
+    await expect.poll(() => paused(viewer)).toBe(true);
+    await expect.poll(() => gap(ana, viewer)).toBeLessThan(THRESHOLD);
+  }
+
+  // Nobody's player drifts back into playing: the Room's changes didn't echo as new commands.
+  await ana.waitForTimeout(1000);
+  for (const viewer of [ana, rui, mia]) expect(await paused(viewer)).toBe(true);
+});

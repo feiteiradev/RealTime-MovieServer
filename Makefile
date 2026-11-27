@@ -1,6 +1,6 @@
 PLATFORMS := windows/amd64 darwin/arm64 darwin/amd64 linux/amd64 linux/arm64
 
-.PHONY: build web test run
+.PHONY: build web test e2e run
 
 # Build the frontend, then a Campfire binary per platform into bin/.
 build: web
@@ -14,8 +14,12 @@ web:
 	touch server/dist/.gitkeep # vite empties dist; keep the committed placeholder
 
 test:
-	cd server && go vet ./... && go test ./...
-	cd web && bun run typecheck
+	cd server && go vet ./... && go test -race ./...
+	cd web && bun run typecheck && bun test
+
+# Browser end-to-end tests against the real server (downloads Playwright's Chromium once).
+e2e: web
+	cd web && bunx playwright install chromium && bunx playwright test
 
 run: web
 	cd server && go run .

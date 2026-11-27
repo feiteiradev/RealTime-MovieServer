@@ -40,7 +40,8 @@ Anyone with the link has full control of the Room; the unguessable ngrok URL is 
 ## Develop
 
 ```sh
-make test               # go vet + go test, and the frontend type-check
+make test               # go vet + go test -race, the frontend type-check and bun test
+make e2e                # build, then Playwright with two browsers against the real server
 cd server && go run .   # server on :8080 (serves the last web build)
 cd web && bun run dev   # Vite dev server with hot reload; proxies /ws to :8080
 ```
@@ -51,3 +52,6 @@ Layout:
 - `server/transport/`: HTTP and WebSocket transport, plus the protocol tests that run the real server in-process.
 - `server/main.go`: flags and the embedded frontend (`server/dist/`, filled by the web build).
 - `web/`: React + Vite + TypeScript + Tailwind frontend. `src/protocol.ts` mirrors the Go protocol types.
+  - `src/sync.ts`: pure timing rules (expected position, Drift decision, clock offset) and `follow`, which drives any player toward the Playback State.
+  - `src/player/player.ts`: the interface every Source's player implements; `localFilePlayer.ts` is the `<video>` one.
+  - `e2e/`: Playwright tests (`*.e2e.ts`) and the committed `fixtures/movie.mp4`.
