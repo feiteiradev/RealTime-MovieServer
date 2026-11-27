@@ -72,11 +72,13 @@ type PlaybackState struct {
 
 // MediaItem is flat across Sources; each Source uses its own fields.
 type MediaItem struct {
-	Source string `json:"source"` // "local"
+	Source string `json:"source"` // "local" or "youtube"
 	// Local File: read from the setter's file; the file itself never leaves their machine.
 	Name     string  `json:"name,omitempty"`
 	Size     int64   `json:"size,omitempty"`     // bytes
 	Duration float64 `json:"duration,omitempty"` // seconds
+	// YouTube: the 11-character id from the link.
+	VideoID string `json:"videoId,omitempty"`
 }
 
 type Viewers struct {

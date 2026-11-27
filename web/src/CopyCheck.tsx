@@ -4,7 +4,7 @@ import { readDuration } from "./player/localFilePlayer";
 import { matchLocalFile } from "./localFileMatch";
 
 /** Warns, without blocking, when the Viewer's copy differs from the Local File that was set. */
-export function CopyCheck({ item, copy }: { item: MediaItem; copy: File }) {
+export function CopyCheck({ item, copy }: { item: Extract<MediaItem, { source: "local" }>; copy: File }) {
   const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { aloneInTheRoom } from "./room";
 import path from "node:path";
 
 // 20 s, 160×90 VP9 in MP4 (Playwright's Chromium has no H.264), a keyframe every second.
@@ -35,6 +36,7 @@ const userSeek = (page: Page, to: number) =>
 
 test("Viewers watch a Local File together: play, seek and pause follow, late joiners land in sync", async ({ browser }) => {
   const ana = await joinAs(browser, "Ana");
+  await aloneInTheRoom(ana);
   const rui = await joinAs(browser, "Rui");
 
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
@@ -76,8 +78,30 @@ test("Viewers watch a Local File together: play, seek and pause follow, late joi
   for (const viewer of [ana, rui, mia]) expect(await paused(viewer)).toBe(true);
 });
 
+test("a YouTube link replaces the Media Item for everyone; an invalid one is refused before sending", async ({ browser }) => {
+  const ana = await joinAs(browser, "Ana");
+  await aloneInTheRoom(ana);
+  const rui = await joinAs(browser, "Rui");
+  // Offline and deterministic: the real IFrame API is checked by hand.
+  for (const p of [ana, rui]) await p.route("https://www.youtube.com/**", (r) => r.abort());
+
+  await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
+  await expect(rui.getByText("Choose your copy of movie.mp4")).toBeVisible();
+
+  await ana.getByLabel("Set a YouTube link").fill("https://vimeo.com/123");
+  await ana.getByRole("button", { name: "Play" }).click();
+  await expect(ana.getByRole("alert")).toHaveText("That's not a valid YouTube link");
+  await expect(rui.getByText("Choose your copy of movie.mp4")).toBeVisible();
+
+  await ana.getByLabel("Set a YouTube link").fill("https://youtu.be/dQw4w9WgXcQ");
+  await ana.getByRole("button", { name: "Play" }).click();
+  await expect(rui.getByText("Choose your copy of movie.mp4")).toBeHidden();
+  await expect(rui.getByRole("alert")).toHaveText("Couldn't reach YouTube; check your connection");
+});
+
 test("±10 s and shortcuts apply to everyone; volume stays personal", async ({ browser }) => {
   const ana = await joinAs(browser, "Ana");
+  await aloneInTheRoom(ana);
   const rui = await joinAs(browser, "Rui");
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
   await rui.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);

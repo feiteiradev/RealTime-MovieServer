@@ -3,7 +3,7 @@ import type { MediaItem } from "./protocol";
 type FileDetails = { name: string; size: number; duration: number };
 
 /** Compares a Viewer's copy with the Local File that was set: "same", or a warning that never blocks. */
-export function matchLocalFile(set: MediaItem, copy: FileDetails): string {
+export function matchLocalFile(set: Extract<MediaItem, { source: "local" }>, copy: FileDetails): string {
   const diffs: string[] = [];
   const delta = copy.duration - set.duration;
   if (Math.abs(delta) >= 1) {

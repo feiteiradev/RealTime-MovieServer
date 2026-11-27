@@ -5,6 +5,8 @@ import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
 import { CopyCheck } from "./CopyCheck";
+import { SetYouTubeLink } from "./SetYouTubeLink";
+import { YouTubePlayer } from "./YouTubePlayer";
 import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
@@ -55,7 +57,7 @@ export default function App() {
   // This Viewer's status, sent whenever it changes (and on joining).
   const [buffering, setBuffering] = useState(false);
   useEffect(() => setBuffering(false), [copy]); // a fresh player isn't buffering yet
-  const status = playback?.mediaItem && !copy ? "needsFile" : buffering ? "buffering" : "watching";
+  const status = playback?.mediaItem?.source === "local" && !copy ? "needsFile" : buffering ? "buffering" : "watching";
   useEffect(() => {
     if (viewerId) send({ type: "status", status });
   }, [viewerId, status, reconnecting]); // a rejoin resets it to watching on the server
@@ -228,21 +230,31 @@ export default function App() {
         <h2 id="now-playing" className="font-semibold">
           Now playing
         </h2>
-        {!item && <p>The Room is empty. Add something to watch: set a Local File below.</p>}
-        {item && !copy && (
+        {!item && <p>The Room is empty. Add something to watch: set a Local File or a YouTube link below.</p>}
+        {item?.source === "youtube" && playback && (
+          <YouTubePlayer videoId={item.videoId} playback={playback} offset={offset} events={playerEvents} />
+        )}
+        {item?.source === "local" && !copy && (
           <label className="flex flex-col gap-1">
             Choose your copy of {item.name}
             <input type="file" accept="video/*,audio/*" onChange={chooseCopy} />
           </label>
         )}
-        {item && copy && playback && (
+        {item?.source === "local" && copy && playback && (
           <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
         )}
-        {item && copy && <CopyCheck item={item} copy={copy} />}
+        {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
         <label className="flex flex-col gap-1">
           Set a Local File
           <input type="file" accept="video/*,audio/*" onChange={setLocalFile} />
         </label>
+        <SetYouTubeLink
+          onSet={(videoId) => {
+            setError(null);
+            send({ type: "setMedia", mediaItem: { source: "youtube", videoId } });
+          }}
+          onError={setError}
+        />
         {error && (
           <p role="alert" className="text-red-700">
             {error}

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { aloneInTheRoom } from "./room";
 import path from "node:path";
 
 const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4");
@@ -16,6 +17,7 @@ test("the Activity Feed shows who did what, newest first", async ({ browser }) =
     return page;
   };
   const ana = await join("Ana");
+  await aloneInTheRoom(ana);
   const rui = await join("Rui");
   await expect(ana.getByRole("heading", { name: /In the Room/ })).toBeVisible();
   await expect(rui.getByRole("heading", { name: /In the Room/ })).toBeVisible(); // Rui is in before Ana acts

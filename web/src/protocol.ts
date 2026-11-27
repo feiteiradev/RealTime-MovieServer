@@ -6,13 +6,15 @@ export type ViewerStatus = "watching" | "buffering" | "needsFile" | "disconnecte
 export type Viewer = { id: string; nickname: string; status: ViewerStatus };
 
 /** Flat across Sources; each Source uses its own fields. */
-export type MediaItem = {
-  source: "local";
-  /** Local File details, read from the setter's file. The file itself never leaves their machine. */
-  name: string;
-  size: number;
-  duration: number;
-};
+export type MediaItem =
+  | {
+      source: "local";
+      /** Local File details, read from the setter's file. The file itself never leaves their machine. */
+      name: string;
+      size: number;
+      duration: number;
+    }
+  | { source: "youtube"; videoId: string };
 
 /** Expected position: position + (playing ? (serverNow − updatedAt)/1000 × rate : 0). */
 export type PlaybackState = {

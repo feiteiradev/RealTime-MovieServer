@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { aloneInTheRoom } from "./room";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -22,6 +23,7 @@ const presence = (page: Page, text: string) =>
 
 test("statuses show in the presence list, and a renamed copy warns without blocking", async ({ browser }) => {
   const ana = await joinAs(browser, "Ana");
+  await aloneInTheRoom(ana);
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
   await expect(ana.locator("video")).toBeVisible();
 
@@ -41,6 +43,7 @@ test("statuses show in the presence list, and a renamed copy warns without block
 
 test("a copy the browser can't decode says to try an MP4 copy", async ({ browser }) => {
   const ana = await joinAs(browser, "Ana");
+  await aloneInTheRoom(ana);
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
   const rui = await joinAs(browser, "Rui");
 

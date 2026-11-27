@@ -20,7 +20,8 @@ type Props = { player: Player; playback: PlaybackState; events: PlayerEvents };
 export function TransportControls({ player, playback, events }: Props) {
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
-  const duration = playback.mediaItem?.duration ?? 0;
+  // YouTube items carry no duration; its player clamps a seek past the end itself.
+  const duration = playback.mediaItem?.source === "local" ? playback.mediaItem.duration : Infinity;
 
   const jump = (delta: number) => events.onUserSeek(Math.min(Math.max(player.currentTime() + delta, 0), duration));
   const changeVolume = (v: number) => {

@@ -5,3 +5,4 @@ server/dist/*
 .DS_Store
 web/test-results/
 web/playwright-report/
+.claude/

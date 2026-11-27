@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page, type WebSocketRoute } from "@playwright/test";
+import { aloneInTheRoom } from "./room";
 import path from "node:path";
 
 const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4"); // 20 s
@@ -36,6 +37,7 @@ const gap = async (a: Page, b: Page) => Math.abs((await time(a)) - (await time(b
 
 test("a dropped Viewer reconnects on their own, with a badge meanwhile, and lands in sync", async ({ browser }) => {
   const { page: ana } = await joinCuttable(browser, "Ana");
+  await aloneInTheRoom(ana);
   const { page: rui, cut, restore } = await joinCuttable(browser, "Rui");
 
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
@@ -59,6 +61,7 @@ test("a dropped Viewer reconnects on their own, with a badge meanwhile, and land
 
 test("when the media ends everyone stays paused at the end", async ({ browser }) => {
   const { page: ana } = await joinCuttable(browser, "Ana");
+  await aloneInTheRoom(ana);
   const { page: rui } = await joinCuttable(browser, "Rui");
   await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
   await rui.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);
