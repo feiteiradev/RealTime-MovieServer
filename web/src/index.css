@@ -10,11 +10,13 @@
   --color-ink: #edeae4;
   --color-soft: #cfcac1;
   --color-muted: #a39e95;
+  --color-faint: #8a857c;
   --color-ember: #f08a4b;
   --color-ember-hover: #f39d68;
   --color-ember-ink: #1a0f08;
   --color-warn: #e8c27a;
   --color-warn-bg: #2a2113;
+  --color-warn-edge: #5a4520;
   --color-danger: #f5a497;
   --color-danger-bg: #2a1714;
   --color-ok: #7cc79a;
@@ -26,6 +28,11 @@
 @layer base {
   html {
     color-scheme: dark;
+    scrollbar-color: var(--color-edge) transparent;
+    caret-color: var(--color-ember);
+  }
+  ::selection {
+    background: rgb(240 138 75 / 0.35);
   }
   body {
     @apply bg-ground font-sans text-ink antialiased;

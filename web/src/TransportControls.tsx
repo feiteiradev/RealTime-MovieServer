@@ -51,16 +51,16 @@ export function TransportControls({ player, playback, events }: Props) {
 
   return (
     <div role="group" aria-label="Playback controls" className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-2 text-[13px] text-muted">
-      <button type="button" className="btn grow font-mono sm:grow-0" onClick={() => jump(-JUMP_SECONDS)} aria-label="Back 10 seconds">
+      <button type="button" className="btn grow tabular-nums sm:grow-0" onClick={() => jump(-JUMP_SECONDS)} aria-label="Back 10 seconds">
         −10 s
       </button>
-      <button type="button" className="btn grow font-mono sm:grow-0" onClick={() => jump(JUMP_SECONDS)} aria-label="Forward 10 seconds">
+      <button type="button" className="btn grow tabular-nums sm:grow-0" onClick={() => jump(JUMP_SECONDS)} aria-label="Forward 10 seconds">
         +10 s
       </button>
-      <label className="flex items-center gap-2 has-disabled:text-[#8a857c]" title={player.supportsRate ? undefined : "Not supported for this source"}>
+      <label className="flex items-center gap-2 has-disabled:text-faint" title={player.supportsRate ? undefined : "Not supported for this source"}>
         Speed
         <select
-          className="h-11 rounded-lg border border-edge bg-raised px-2.5 text-sm text-ink disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-[#8a857c]"
+          className="h-11 rounded-lg border border-edge bg-raised px-2.5 text-sm text-ink disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-faint"
           value={playback.rate}
           disabled={!player.supportsRate}
           onChange={(e) => events.onUserRate(Number(e.target.value))}

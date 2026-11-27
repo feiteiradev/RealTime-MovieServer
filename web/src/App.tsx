@@ -236,15 +236,18 @@ export default function App() {
           <h1>
             <Brand />
           </h1>
-          {reconnecting && (
-            <span
-              role="status"
-              className="inline-flex items-center gap-2 rounded-full border border-[#5a4520] bg-warn-bg px-3 py-1.5 text-[13px] font-medium text-warn"
-            >
-              <span aria-hidden="true" className="size-1.5 rounded-full bg-warn motion-safe:animate-pulse" />
-              Reconnecting… your controls aren't reaching anyone
-            </span>
-          )}
+          {/* Always mounted so screen readers announce the badge when it appears. */}
+          <span aria-live="polite">
+            {reconnecting && (
+              <span
+                role="status"
+                className="inline-flex items-center gap-2 rounded-full border border-warn-edge bg-warn-bg px-3 py-1.5 text-[13px] font-medium text-warn"
+              >
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-warn motion-safe:animate-pulse" />
+                Reconnecting… your controls aren't reaching anyone
+              </span>
+            )}
+          </span>
         </div>
       </header>
       <main className="mx-auto grid max-w-310 gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -267,8 +270,8 @@ export default function App() {
           {item?.source === "local" && !copy && (
             <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface p-5 text-center">
               <p className="max-w-80 text-sm text-muted">Each Viewer plays their own copy of a Local File. Nothing is uploaded.</p>
-              <label className="btn btn-primary file-btn max-w-full">
-                <span className="truncate">Choose your copy of {item.name}</span>
+              <label className="btn btn-primary file-btn h-auto min-h-11 max-w-full py-2 break-all">
+                <span>Choose your copy of {item.name}</span>
                 <input type="file" accept="video/*,audio/*" className="sr-only" onChange={chooseCopy} />
               </label>
             </div>
@@ -311,7 +314,10 @@ export default function App() {
                     {v.nickname}
                     {v.id === viewerId && " (you)"}
                   </span>
-                  <span className="text-[13px] text-muted">{` · ${STATUS_LABEL[v.status] ?? v.status}`}</span>
+                  <span className="text-[13px] text-muted">
+                    <span className="sr-only"> · </span>
+                    {STATUS_LABEL[v.status] ?? v.status}
+                  </span>
                 </li>
               ))}
             </ul>
