@@ -60,6 +60,7 @@ type message struct {
 	Viewers    []struct {
 		ID       string `json:"id"`
 		Nickname string `json:"nickname"`
+		Status   string `json:"status"`
 	} `json:"viewers"`
 }
 
@@ -121,6 +122,15 @@ func nicknames(m message) []string {
 	return out
 }
 
+// statuses renders the presence list as "Nickname:status,...".
+func statuses(m message) string {
+	var out []string
+	for _, v := range m.Viewers {
+		out = append(out, v.Nickname+":"+v.Status)
+	}
+	return strings.Join(out, ",")
+}
+
 func TestViewerJoinsAndIsWelcomed(t *testing.T) {
 	srv := startServer(t)
 	ana := dial(t, srv)
@@ -149,8 +159,8 @@ func TestPresenceUpdatesWhenViewersJoinAndLeave(t *testing.T) {
 	}
 
 	rui.conn.Close(websocket.StatusNormalClosure, "bye")
-	if got := nicknames(ana.expect("viewers")); strings.Join(got, ",") != "Ana" {
-		t.Fatalf("Ana sees %v after Rui leaves, want Ana", got)
+	if got := statuses(ana.expect("viewers")); got != "Ana:watching,Rui:disconnected" {
+		t.Fatalf("Ana sees %v after Rui's connection drops, want Rui disconnected", got)
 	}
 }
 

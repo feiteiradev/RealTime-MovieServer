@@ -15,19 +15,25 @@ import (
 
 const MaxNicknameLength = 32
 
+// DisconnectGrace is how long a dropped Viewer keeps their place in the Room.
+const DisconnectGrace = 30 * time.Second
+
 type Room struct {
 	now     func() time.Time
 	viewers []Viewer // in join order
 	state   PlaybackState
+	gone    map[string]time.Time // disconnected viewerId → when
 }
 
 // New makes an empty Room. now is the server clock (time.Now outside tests).
 func New(now func() time.Time) *Room {
-	return &Room{now: now, state: PlaybackState{Rate: 1, UpdatedAt: now().UnixMilli()}}
+	return &Room{now: now, gone: map[string]time.Time{}, state: PlaybackState{Rate: 1, UpdatedAt: now().UnixMilli()}}
 }
 
-// Join adds a Viewer. On error the Room is unchanged and nothing is sent.
-func (r *Room) Join(nickname string) (viewerID string, out []Delivery, err error) {
+// Join adds a Viewer. A reconnecting Viewer passes their previous viewerId and gets their
+// presence entry back if it still exists under the same Nickname; otherwise they join afresh.
+// On error the Room is unchanged and nothing is sent.
+func (r *Room) Join(nickname, previousID string) (viewerID string, out []Delivery, err error) {
 	nickname = strings.TrimSpace(nickname)
 	if nickname == "" {
 		return "", nil, errors.New("Nickname can't be empty")
@@ -35,16 +41,48 @@ func (r *Room) Join(nickname string) (viewerID string, out []Delivery, err error
 	if utf8.RuneCountInString(nickname) > MaxNicknameLength {
 		return "", nil, errors.New("Nickname must be at most 32 characters")
 	}
-	v := Viewer{ID: rand.Text(), Nickname: nickname, Status: "watching"}
-	r.viewers = append(r.viewers, v)
+	var v Viewer
+	if i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == previousID && v.Nickname == nickname }); i >= 0 {
+		delete(r.gone, previousID)
+		r.viewers[i].Status = "watching"
+		v = r.viewers[i]
+	} else {
+		v = Viewer{ID: rand.Text(), Nickname: nickname, Status: "watching"}
+		r.viewers = append(r.viewers, v)
+	}
 	return v.ID, []Delivery{
 		{To: v.ID, Msg: Welcome{Type: "welcome", ViewerID: v.ID, State: r.state, Viewers: r.Viewers()}},
 		{Except: v.ID, Msg: r.viewersMsg()},
 	}, nil
 }
 
+// Disconnect marks a Viewer whose connection dropped; Sweep removes them once the grace
+// period passes, unless they rejoin first. Unknown ids are ignored.
+func (r *Room) Disconnect(viewerID string) []Delivery {
+	i := slices.IndexFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
+	if i < 0 {
+		return nil
+	}
+	r.viewers[i].Status = "disconnected"
+	r.gone[viewerID] = r.now()
+	return []Delivery{{Msg: r.viewersMsg()}}
+}
+
+// Sweep removes Viewers disconnected for at least DisconnectGrace. The transport calls it
+// periodically.
+func (r *Room) Sweep() []Delivery {
+	var out []Delivery
+	for id, since := range r.gone {
+		if r.now().Sub(since) >= DisconnectGrace {
+			out = append(out, r.Leave(id)...)
+		}
+	}
+	return out
+}
+
 // Leave removes a Viewer. Unknown ids are ignored.
 func (r *Room) Leave(viewerID string) []Delivery {
+	delete(r.gone, viewerID)
 	n := len(r.viewers)
 	r.viewers = slices.DeleteFunc(r.viewers, func(v Viewer) bool { return v.ID == viewerID })
 	if len(r.viewers) == n {
@@ -73,6 +111,9 @@ func (r *Room) Play(viewerID string, position float64) []Delivery {
 }
 
 func (r *Room) Pause(viewerID string, position float64) []Delivery {
+	if r.state.MediaItem != nil && !r.state.Playing && r.state.Position == position {
+		return nil // e.g. every player reporting the end: only the first one counts
+	}
 	return r.control(viewerID, position, false)
 }
 

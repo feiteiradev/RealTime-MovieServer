@@ -19,6 +19,7 @@ import (
 // Handler serves the static frontend at / and the Room's WebSocket at /ws.
 func Handler(r *room.Room, static fs.FS) http.Handler {
 	h := &hub{room: r, conns: map[string]*websocket.Conn{}}
+	go h.sweep()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", h.serveWS)
 	files := http.FileServerFS(static)
@@ -50,8 +51,11 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 		}
 		h.mu.Lock()
 		defer h.mu.Unlock()
+		if h.conns[viewerID] != conn {
+			return // already reclaimed by a newer connection
+		}
 		delete(h.conns, viewerID)
-		h.deliver(h.room.Leave(viewerID))
+		h.deliver(h.room.Disconnect(viewerID))
 	}()
 
 	for {
@@ -78,10 +82,13 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 				sendError(conn, "Already joined")
 			} else if json.Unmarshal(data, &m) != nil {
 				sendError(conn, "Invalid join message")
-			} else if id, out, err := h.room.Join(m.Nickname); err != nil {
+			} else if id, out, err := h.room.Join(m.Nickname, m.ViewerID); err != nil {
 				sendError(conn, err.Error())
 			} else {
 				viewerID = id
+				if old := h.conns[id]; old != nil {
+					old.CloseNow() // a stale connection of the same Viewer, now replaced
+				}
 				h.conns[id] = conn
 				h.deliver(out)
 			}
@@ -109,6 +116,15 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 		default:
 			sendError(conn, "Unknown message type "+envelope.Type)
 		}
+		h.mu.Unlock()
+	}
+}
+
+// sweep removes Viewers whose disconnect grace period has passed. Runs for the process's life.
+func (h *hub) sweep() {
+	for range time.Tick(500 * time.Millisecond) {
+		h.mu.Lock()
+		h.deliver(h.room.Sweep())
 		h.mu.Unlock()
 	}
 }

@@ -7,6 +7,7 @@ package room
 
 type Join struct {
 	Nickname string `json:"nickname"`
+	ViewerID string `json:"viewerId,omitempty"` // set on a reconnect, to reclaim the same presence entry
 }
 
 // Position is the body of play, pause and seek.
