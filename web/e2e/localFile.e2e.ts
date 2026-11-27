@@ -1,30 +1,9 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
-import { aloneInTheRoom } from "./room";
-import path from "node:path";
+import { expect, test, type Page } from "@playwright/test";
+import { aloneInTheRoom, closeContexts, gap, joinAs, MOVIE, paused, THRESHOLD, time, video } from "./room";
 
-// 20 s, 160×90 VP9 in MP4 (Playwright's Chromium has no H.264), a keyframe every second.
-const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4");
-const THRESHOLD = 1; // seconds of Drift the Room tolerates
+test.afterEach(closeContexts);
 
-// Each Viewer gets its own browser context; close them so they leave the Room before the next test.
-test.afterEach(async ({ browser }) => {
-  await Promise.all(browser.contexts().map((c) => c.close()));
-});
-
-async function joinAs(browser: Browser, nickname: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
-  await page.goto("/");
-  await page.getByLabel("Nickname").fill(nickname);
-  await page.getByRole("button", { name: "Join" }).click();
-  await expect(page.getByRole("heading", { name: /In the Room/ })).toBeVisible();
-  return page;
-}
-
-const video = (page: Page) => page.locator("video");
-const time = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
-const paused = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.paused);
 const rate = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.playbackRate);
-const gap = async (a: Page, b: Page) => Math.abs((await time(a)) - (await time(b)));
 
 // The Viewer's own actions go straight to the <video>, as its native controls would.
 const userPlay = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.play());

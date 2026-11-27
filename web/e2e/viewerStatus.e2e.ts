@@ -1,22 +1,8 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
-import { aloneInTheRoom } from "./room";
+import { expect, test, type Page } from "@playwright/test";
+import { aloneInTheRoom, closeContexts, joinAs, MOVIE } from "./room";
 import { readFileSync } from "node:fs";
-import path from "node:path";
 
-const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4");
-
-test.afterEach(async ({ browser }) => {
-  await Promise.all(browser.contexts().map((c) => c.close()));
-});
-
-async function joinAs(browser: Browser, nickname: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
-  await page.goto("/");
-  await page.getByLabel("Nickname").fill(nickname);
-  await page.getByRole("button", { name: "Join" }).click();
-  await expect(page.getByRole("heading", { name: /In the Room/ })).toBeVisible();
-  return page;
-}
+test.afterEach(closeContexts);
 
 const presence = (page: Page, text: string) =>
   page.getByRole("region", { name: /In the Room/ }).getByRole("listitem").filter({ hasText: text });

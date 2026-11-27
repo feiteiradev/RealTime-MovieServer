@@ -1,13 +1,7 @@
-import { expect, test, type Browser, type Page, type WebSocketRoute } from "@playwright/test";
-import { aloneInTheRoom } from "./room";
-import path from "node:path";
+import { expect, test, type Browser, type WebSocketRoute } from "@playwright/test";
+import { aloneInTheRoom, closeContexts, gap, join, MOVIE, paused, THRESHOLD, time, video } from "./room";
 
-const MOVIE = path.join(import.meta.dirname, "fixtures", "movie.mp4"); // 20 s
-const THRESHOLD = 1;
-
-test.afterEach(async ({ browser }) => {
-  await Promise.all(browser.contexts().map((c) => c.close()));
-});
+test.afterEach(closeContexts);
 
 /** Joins through a proxied socket that the test can cut, and keep down, at will. */
 async function joinCuttable(browser: Browser, nickname: string) {
@@ -18,10 +12,7 @@ async function joinCuttable(browser: Browser, nickname: string) {
     ws.connectToServer(); // forwards both ways untouched
     net.socket = ws;
   });
-  await page.goto("/");
-  await page.getByLabel("Nickname").fill(nickname);
-  await page.getByRole("button", { name: "Join" }).click();
-  await expect(page.getByRole("heading", { name: /In the Room/ })).toBeVisible();
+  await join(page, nickname);
   const cut = async () => {
     net.down = true;
     await net.socket?.close();
@@ -29,11 +20,6 @@ async function joinCuttable(browser: Browser, nickname: string) {
   const restore = () => (net.down = false);
   return { page, cut, restore };
 }
-
-const video = (page: Page) => page.locator("video");
-const time = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
-const paused = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.paused);
-const gap = async (a: Page, b: Page) => Math.abs((await time(a)) - (await time(b)));
 
 test("a dropped Viewer reconnects on their own, with a badge meanwhile, and lands in sync", async ({ browser }) => {
   const { page: ana } = await joinCuttable(browser, "Ana");
