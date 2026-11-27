@@ -65,6 +65,8 @@ export default function App() {
   const [playback, setPlaybackState] = useState<PlaybackState | null>(null);
   /** This Viewer's own copy of the current Local File, once chosen. */
   const [copy, setCopy] = useState<File | null>(null);
+  /** That copy's length, read by its player once loaded. */
+  const [copyLength, setCopyLength] = useState<{ file: File; duration: number } | null>(null);
   /** The socket dropped and we're trying to get back in; controls reach nobody meanwhile. */
   const [reconnecting, setReconnecting] = useState(false);
   const [volume, setVolume] = useState<Volume>({ level: 1, muted: false });
@@ -334,9 +336,12 @@ export default function App() {
               events={playerEvents}
               volume={volume}
               onVolume={setVolume}
+              onReady={(p) => setCopyLength({ file: copy, duration: p.duration() })}
             />
           )}
-          {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
+          {item?.source === "local" && copy && copyLength?.file === copy && (
+            <CopyCheck item={item} copy={copy} duration={copyLength.duration} />
+          )}
           {error && <Notice tone="danger">{error}</Notice>}
           <div className="flex flex-col gap-2 pt-2">
             <h3 className="heading">Put something on</h3>

@@ -22,10 +22,12 @@ type Props = {
   className?: string;
   /** An error hides the player, leaving only the readable message. */
   hideOnError?: boolean;
+  /** The player is loaded and ready, e.g. to read its duration. Captured once per sourceKey. */
+  onReady?: (player: Player) => void;
 };
 
 /** Any Source's player, kept following the Playback State, with the Transport Controls under it. */
-export function FollowingPlayer({ sourceKey, create, playback, offset, events, volume, onVolume, className, hideOnError }: Props) {
+export function FollowingPlayer({ sourceKey, create, playback, offset, events, volume, onVolume, className, hideOnError, onReady }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState<Player | null>(null);
   const [failed, setFailed] = useState(false);
@@ -49,6 +51,7 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
         if (cancelled) return p.destroy();
         player = p;
         setReady(p); // the [playback, ready] effect follows it straight away
+        onReady?.(p);
         events.onBuffering(false); // a fresh player isn't buffering yet
         timer = setInterval(() => follow(p, latest.current, offset(), Date.now()), FOLLOW_EVERY_MS);
       },
