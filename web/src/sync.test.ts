@@ -58,6 +58,15 @@ describe("decideDrift", () => {
     expect(decideDrift(state({ playing: true, position: 10 }), 3_000, 9_000, 10)).toEqual({ action: "jump", to: 12 });
   });
 
+  test("a shorter copy already at its end is left there while the Room plays on", () => {
+    // Expected 700 s, but the copy is 650 s long and has ended at 650.
+    expect(decideDrift(state({ playing: true, position: 690 }), 0, 20_000, 650, 650)).toEqual({ action: "leave" });
+    // Not at its end yet: jumps to its end, not past it.
+    expect(decideDrift(state({ playing: true, position: 690 }), 0, 20_000, 600, 650)).toEqual({ action: "jump", to: 650 });
+    // Unknown length: no clamp.
+    expect(decideDrift(state({ playing: true, position: 690 }), 0, 20_000, 650, Infinity)).toEqual({ action: "jump", to: 700 });
+  });
+
   test("no Media Item: nothing to correct", () => {
     expect(decideDrift(state({ mediaItem: null, position: 30 }), 0, 50_000, 0)).toEqual({ action: "leave" });
   });

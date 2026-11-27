@@ -12,9 +12,11 @@ export function expectedPosition(state: PlaybackState, serverNow: number): numbe
 
 export type DriftDecision = { action: "leave" } | { action: "jump"; to: number };
 
-export function decideDrift(state: PlaybackState, offset: number, localNow: number, playerTime: number): DriftDecision {
+/** duration is the player's own, in seconds: a shorter copy already at its end is left there. 0 or non-finite when not known. */
+export function decideDrift(state: PlaybackState, offset: number, localNow: number, playerTime: number, duration = 0): DriftDecision {
   if (!state.mediaItem) return { action: "leave" };
-  const expected = expectedPosition(state, localNow + offset);
+  const room = expectedPosition(state, localNow + offset);
+  const expected = Number.isFinite(duration) && duration > 0 ? Math.min(room, duration) : room;
   return Math.abs(playerTime - expected) >= DRIFT_THRESHOLD_SECONDS ? { action: "jump", to: expected } : { action: "leave" };
 }
 
@@ -29,7 +31,7 @@ export function follow(player: Player, state: PlaybackState, offset: number, loc
   }
   if (player.supportsRate) player.setRate(state.rate);
   if (player.isBuffering()) return;
-  const drift = decideDrift(state, offset, localNow, player.currentTime());
+  const drift = decideDrift(state, offset, localNow, player.currentTime(), player.duration());
   if (drift.action === "jump") player.seek(drift.to);
 }
 
