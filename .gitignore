@@ -1,0 +1,8 @@
+node_modules/
+bin/
+server/dist/*
+!server/dist/.gitkeep
+.DS_Store
+web/test-results/
+web/playwright-report/
+.claude/

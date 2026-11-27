@@ -1,0 +1,19 @@
+import type { MediaItem } from "./protocol";
+
+type FileDetails = { name: string; size: number; duration: number };
+
+/** Compares a Viewer's copy with the Local File that was set: "same", or a warning that never blocks. */
+export function matchLocalFile(set: Extract<MediaItem, { source: "local" }>, copy: FileDetails): string {
+  const diffs: string[] = [];
+  const delta = copy.duration - set.duration;
+  if (Number.isFinite(delta) && Math.abs(delta) >= 1) { // an unreadable length (Infinity/NaN) says nothing about the cut
+    const secs = Math.round(Math.abs(delta));
+    const amount = secs >= 60 ? `${Math.round(secs / 60)} min` : `${secs} s`;
+    diffs.push(`your copy is ${amount} ${delta < 0 ? "shorter" : "longer"}`);
+  }
+  if (copy.size !== set.size) diffs.push("different file size");
+  if (copy.name !== set.name) diffs.push("different name");
+  if (diffs.length === 0) return "same";
+  const text = diffs.join(", ");
+  return text[0].toUpperCase() + text.slice(1);
+}
