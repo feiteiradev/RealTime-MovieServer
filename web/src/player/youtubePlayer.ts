@@ -157,6 +157,7 @@ export async function createYouTubePlayer(element: HTMLElement, videoId: string,
       const s = p.getPlayerState();
       return s !== PLAYING && s !== BUFFERING;
     },
+    isBuffering: () => p.getPlayerState() === BUFFERING,
     supportsRate: true,
     destroy() {
       clearInterval(sampler);

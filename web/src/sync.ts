@@ -18,13 +18,17 @@ export function decideDrift(state: PlaybackState, offset: number, localNow: numb
   return Math.abs(playerTime - expected) >= DRIFT_THRESHOLD_SECONDS ? { action: "jump", to: expected } : { action: "leave" };
 }
 
-/** Brings any Source's player in line with the Playback State: play/pause and rate directly, position by the drift rule. */
+/**
+ * Brings any Source's player in line with the Playback State: play/pause and rate directly, position by the drift rule.
+ * No jump while buffering: the clock stands still after a jump, so a slow Viewer would otherwise re-jump forever.
+ */
 export function follow(player: Player, state: PlaybackState, offset: number, localNow: number): void {
   if (state.playing === player.isPaused()) {
     if (state.playing) player.play();
     else player.pause();
   }
   if (player.supportsRate) player.setRate(state.rate);
+  if (player.isBuffering()) return;
   const drift = decideDrift(state, offset, localNow, player.currentTime());
   if (drift.action === "jump") player.seek(drift.to);
 }

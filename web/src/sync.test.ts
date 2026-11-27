@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { bestClockSample, clockSample, decideDrift, expectedPosition } from "./sync";
+import { bestClockSample, clockSample, decideDrift, expectedPosition, follow } from "./sync";
+import type { Player } from "./player/player";
 import type { PlaybackState } from "./protocol";
 
 const movie = { source: "local", name: "movie.mp4", size: 1234, duration: 600 } as const;
@@ -74,5 +75,37 @@ describe("clock offset", () => {
     expect(bestClockSample(null, slow)).toBe(slow);
     expect(bestClockSample(slow, fast)).toBe(fast);
     expect(bestClockSample(fast, slow)).toBe(fast);
+  });
+});
+
+describe("follow", () => {
+  function fakePlayer(time: number, buffering: boolean) {
+    const calls: string[] = [];
+    const player: Player = {
+      play: () => calls.push("play"),
+      pause: () => calls.push("pause"),
+      seek: (p) => calls.push(`seek ${p}`),
+      setRate: (r) => calls.push(`rate ${r}`),
+      setVolume: () => {},
+      setMuted: () => {},
+      currentTime: () => time,
+      isPaused: () => true,
+      isBuffering: () => buffering,
+      supportsRate: true,
+      destroy: () => {},
+    };
+    return { player, calls };
+  }
+
+  test("drift jumps when not buffering", () => {
+    const { player, calls } = fakePlayer(10, false);
+    follow(player, state({ playing: true, position: 10 }), 0, 15_000);
+    expect(calls).toEqual(["play", "rate 1", "seek 15"]);
+  });
+
+  test("buffering skips the jump but still applies play and rate", () => {
+    const { player, calls } = fakePlayer(10, true);
+    follow(player, state({ playing: true, position: 10 }), 0, 15_000);
+    expect(calls).toEqual(["play", "rate 1"]);
   });
 });

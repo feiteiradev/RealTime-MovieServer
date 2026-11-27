@@ -89,6 +89,7 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
     },
     currentTime: () => video.currentTime,
     isPaused: () => video.paused,
+    isBuffering: () => video.seeking || video.readyState < video.HAVE_FUTURE_DATA,
     supportsRate: true,
     destroy() {
       listening.abort();

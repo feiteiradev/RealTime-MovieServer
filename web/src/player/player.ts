@@ -18,6 +18,8 @@ export interface Player {
   /** Seconds. */
   currentTime(): number;
   isPaused(): boolean;
+  /** Still loading after a seek or a stall: the position isn't advancing yet. */
+  isBuffering(): boolean;
   /** False for Sources that can't change speed; the speed control is then disabled. */
   readonly supportsRate: boolean;
   destroy(): void;
