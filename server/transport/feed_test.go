@@ -13,6 +13,7 @@ type feedEntry struct {
 	Action    string     `json:"action"`
 	Position  *float64   `json:"position"`
 	MediaItem *mediaItem `json:"mediaItem"`
+	Rate      float64    `json:"rate"`
 }
 
 // describe renders an entry compactly so expectations read like the Activity Feed.
@@ -23,6 +24,9 @@ func (e feedEntry) describe() string {
 	}
 	if e.MediaItem != nil {
 		s += " " + e.MediaItem.Name
+	}
+	if e.Rate != 0 {
+		s += fmt.Sprintf(" %v", e.Rate)
 	}
 	return s
 }
@@ -60,6 +64,7 @@ func TestEveryActionIsRecordedInTheActivityFeed(t *testing.T) {
 		{rui, map[string]any{"type": "play", "position": 0}, "4000 Rui play 0"},
 		{ana, map[string]any{"type": "pause", "position": 724}, "4000 Ana pause 724"},
 		{rui, map[string]any{"type": "seek", "position": 2710.5}, "4000 Rui seek 2710.5"},
+		{ana, map[string]any{"type": "rate", "rate": 1.5}, "4000 Ana rate 1.5"},
 	} {
 		step.by.send(step.msg)
 		for _, c := range []*client{ana, rui} {

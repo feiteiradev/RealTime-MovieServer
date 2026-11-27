@@ -22,6 +22,7 @@ async function joinAs(browser: Browser, nickname: string): Promise<Page> {
 const video = (page: Page) => page.locator("video");
 const time = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
 const paused = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.paused);
+const rate = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.playbackRate);
 const gap = async (a: Page, b: Page) => Math.abs((await time(a)) - (await time(b)));
 
 // The Viewer's own actions go straight to the <video>, as its native controls would.
@@ -50,12 +51,18 @@ test("Viewers watch a Local File together: play, seek and pause follow, late joi
   await expect.poll(() => gap(ana, rui)).toBeLessThan(THRESHOLD);
   expect(await paused(ana)).toBe(false);
 
+  await rui.getByLabel("Speed").selectOption("1.5");
+  await expect.poll(() => rate(ana)).toBe(1.5);
+  await expect(ana.getByLabel("Speed")).toHaveValue("1.5");
+  await expect.poll(() => gap(ana, rui)).toBeLessThan(THRESHOLD);
+
   // A late joiner sees the prompt while the Room keeps playing, then lands in sync.
   const mia = await joinAs(browser, "Mia");
   await expect(mia.getByText("Choose your copy of movie.mp4")).toBeVisible();
   expect(await paused(ana)).toBe(false);
   await mia.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);
   await expect.poll(() => paused(mia)).toBe(false);
+  await expect.poll(() => rate(mia)).toBe(1.5);
   await expect.poll(() => gap(ana, mia)).toBeLessThan(THRESHOLD);
 
   await userPause(ana);
@@ -67,4 +74,31 @@ test("Viewers watch a Local File together: play, seek and pause follow, late joi
   // Nobody's player drifts back into playing: the Room's changes didn't echo as new commands.
   await ana.waitForTimeout(1000);
   for (const viewer of [ana, rui, mia]) expect(await paused(viewer)).toBe(true);
+});
+
+test("±10 s and shortcuts apply to everyone; volume stays personal", async ({ browser }) => {
+  const ana = await joinAs(browser, "Ana");
+  const rui = await joinAs(browser, "Rui");
+  await ana.getByLabel("Set a Local File").setInputFiles(MOVIE);
+  await rui.getByLabel("Choose your copy of movie.mp4").setInputFiles(MOVIE);
+  await expect(video(rui)).toBeVisible();
+
+  await ana.getByRole("button", { name: "Forward 10 seconds" }).click();
+  await expect.poll(() => time(rui)).toBeCloseTo(10, 0);
+  await ana.getByRole("button", { name: "Forward 10 seconds" }).click();
+  await expect.poll(() => time(rui)).toBeCloseTo(20, 0); // clamped to the 20 s fixture
+  await rui.keyboard.press("ArrowLeft");
+  await expect.poll(() => time(ana)).toBeCloseTo(10, 0);
+
+  await rui.keyboard.press("Space");
+  await expect.poll(() => paused(ana)).toBe(false);
+  await ana.keyboard.press("Space");
+  await expect.poll(() => paused(rui)).toBe(true);
+
+  await ana.keyboard.press("ArrowDown");
+  await ana.getByRole("checkbox", { name: "Mute" }).check();
+  const volume = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => [v.volume, v.muted]);
+  await expect.poll(() => volume(ana)).toEqual([0.9, true]);
+  await rui.waitForTimeout(500);
+  expect(await volume(rui)).toEqual([1, false]);
 });

@@ -102,9 +102,17 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 			if m, ok := decode[room.SetMedia](conn, data); ok {
 				h.deliver(h.room.SetMedia(viewerID, m.MediaItem))
 			}
+		case "rate":
+			if m, ok := decode[room.Rate](conn, data); ok {
+				h.deliver(h.room.SetRate(viewerID, m.Rate))
+			}
 		case "ping":
 			if m, ok := decode[room.Ping](conn, data); ok {
 				h.deliver(h.room.Ping(viewerID, m.ClientTime))
+			}
+		case "status":
+			if m, ok := decode[room.Status](conn, data); ok {
+				h.deliver(h.room.SetStatus(viewerID, m.Status))
 			}
 		default:
 			sendError(conn, "Unknown message type "+envelope.Type)

@@ -24,5 +24,7 @@ export function describeEntry(e: FeedEntry): string {
       return `${e.nickname} jumped to ${at}`;
     case "setMedia":
       return `${e.nickname} set ${e.mediaItem?.name}`;
+    case "rate":
+      return `${e.nickname} set speed to ${e.rate}×`;
   }
 }

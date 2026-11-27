@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import type { ClientMessage, FeedEntry, PlaybackState, ServerMessage, Viewer } from "./protocol";
+import { RATES, type ClientMessage, type FeedEntry, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
 import { ActivityFeed } from "./ActivityFeed";
 import type { PlayerEvents } from "./player/player";
 import { readDuration } from "./player/localFilePlayer";
 import { LocalFilePlayer } from "./LocalFilePlayer";
-import { bestClockSample, clockSample, type ClockSample } from "./sync";
+import { CopyCheck } from "./CopyCheck";
+import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
 const PING_EVERY_MS = 2000;
+const STATUS_LABEL: Record<Viewer["status"], string> = {
+  watching: "watching",
+  buffering: "buffering",
+  needsFile: "needs file",
+  disconnected: "disconnected",
+};
 
 function savedNickname(): string {
   try {
@@ -34,6 +41,14 @@ export default function App() {
 
   useEffect(() => () => socket.current?.close(), []);
 
+  // This Viewer's status, sent whenever it changes (and on joining).
+  const [buffering, setBuffering] = useState(false);
+  useEffect(() => setBuffering(false), [copy]); // a fresh player isn't buffering yet
+  const status = playback?.mediaItem && !copy ? "needsFile" : buffering ? "buffering" : "watching";
+  useEffect(() => {
+    if (viewerId) send({ type: "status", status });
+  }, [viewerId, status]);
+
   const offset = () => clock.current?.offset ?? 0;
   const send = (msg: ClientMessage) => socket.current?.send(JSON.stringify(msg));
   const setPlayback = (s: PlaybackState) => {
@@ -56,8 +71,15 @@ export default function App() {
     onUserPlay: (p) => control("play", p),
     onUserPause: (p) => control("pause", p),
     onUserSeek: (p) => control("seek", p),
+    onUserRate: (rate) => {
+      send({ type: "rate", rate });
+      const s = playbackRef.current;
+      if (!s || !RATES.includes(rate)) return; // other speeds are rejected; follow() puts it back
+      const now = Date.now() + offset();
+      setPlayback({ ...s, position: expectedPosition(s, now), rate, updatedAt: now });
+    },
     onEnded: (p) => control("pause", p),
-    onBuffering: () => {}, // reported as Viewer status in a later ticket
+    onBuffering: setBuffering,
     onError: setError,
   };
 
@@ -183,6 +205,7 @@ export default function App() {
         {item && copy && playback && (
           <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
         )}
+        {item && copy && <CopyCheck item={item} copy={copy} />}
         <label className="flex flex-col gap-1">
           Set a Local File
           <input type="file" accept="video/*,audio/*" onChange={setLocalFile} />
@@ -202,6 +225,7 @@ export default function App() {
             <li key={v.id}>
               {v.nickname}
               {v.id === viewerId && " (you)"}
+              {` · ${STATUS_LABEL[v.status] ?? v.status}`}
             </li>
           ))}
         </ul>

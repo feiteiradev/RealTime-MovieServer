@@ -62,6 +62,7 @@ type message struct {
 	Viewers    []struct {
 		ID       string `json:"id"`
 		Nickname string `json:"nickname"`
+		Status   string `json:"status"`
 	} `json:"viewers"`
 }
 

@@ -13,4 +13,5 @@ test("describes each action with the Viewer's Nickname and, where relevant, the 
   expect(
     describeEntry({ at, nickname: "Mia", action: "setMedia", mediaItem: { source: "local", name: "Movie.mkv", size: 1, duration: 1 } }),
   ).toBe("Mia set Movie.mkv");
+  expect(describeEntry({ at, nickname: "Ana", action: "rate", rate: 1.5 })).toBe("Ana set speed to 1.5×");
 });

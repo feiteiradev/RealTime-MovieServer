@@ -18,9 +18,22 @@ type SetMedia struct {
 	MediaItem MediaItem `json:"mediaItem"`
 }
 
+// Rate is the body of rate: the new speed for everyone, one of Rates.
+type Rate struct {
+	Rate float64 `json:"rate"`
+}
+
+// Rates are the speeds a Viewer can choose. Mirrored as RATES in web/src/protocol.ts.
+var Rates = []float64{0.5, 0.75, 1, 1.25, 1.5, 2}
+
 // Ping asks for the server time so the client can estimate its clock offset.
 type Ping struct {
 	ClientTime float64 `json:"clientTime"` // client ms, echoed back untouched
+}
+
+// Status is the sender's own Viewer status: "watching", "buffering" or "needsFile".
+type Status struct {
+	Status string `json:"status"`
 }
 
 // Server → client.
@@ -78,7 +91,7 @@ type Error struct {
 type Viewer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
-	Status   string `json:"status"` // "watching" for now; later: buffering, needsFile, disconnected
+	Status   string `json:"status"` // "watching", "buffering", "needsFile" or "disconnected" (set by the server only)
 }
 
 // Feed is sent to every Viewer for each new Activity Feed entry.
@@ -91,9 +104,10 @@ type Feed struct {
 type FeedEntry struct {
 	At        int64      `json:"at"` // server Unix ms
 	Nickname  string     `json:"nickname"`
-	Action    string     `json:"action"`              // "join", "leave", "play", "pause", "seek" or "setMedia"
+	Action    string     `json:"action"`              // "join", "leave", "play", "pause", "seek", "setMedia" or "rate"
 	Position  *float64   `json:"position,omitempty"`  // play, pause, seek: seconds
 	MediaItem *MediaItem `json:"mediaItem,omitempty"` // setMedia
+	Rate      float64    `json:"rate,omitempty"`      // rate
 }
 
 // Delivery is a message the Room wants sent. To is a viewerId, or "" for every Viewer
