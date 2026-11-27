@@ -142,25 +142,26 @@ export default function App() {
     connect(nickname, null, 0);
   }
 
-  // Opens the socket and joins; if it drops after joining, rejoins as previousId with backoff.
-  function connect(name: string, previousId: string | null, attempt: number) {
+  // Opens the socket and joins; if it drops after joining, rejoins with the private rejoinToken, with backoff.
+  function connect(name: string, rejoinToken: string | null, attempt: number) {
     socket.current?.close();
     const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
     socket.current = ws;
-    let me = previousId ?? "";
+    let me = "";
+    let token = rejoinToken ?? "";
     let joined = false;
     let pinger: ReturnType<typeof setTimeout> | undefined;
     const ping = (n: number) => {
       send({ type: "ping", clientTime: Date.now() });
       pinger = setTimeout(() => ping(n + 1), n < QUICK_PINGS ? PING_EVERY_MS : PING_SLOWLY_MS);
     };
-    ws.onopen = () =>
-      send(previousId ? { type: "join", nickname: name, viewerId: previousId } : { type: "join", nickname: name });
+    ws.onopen = () => send(token ? { type: "join", nickname: name, rejoinToken: token } : { type: "join", nickname: name });
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerMessage;
       switch (msg.type) {
         case "welcome":
           me = msg.viewerId;
+          token = msg.rejoinToken;
           joined = true;
           setReconnecting(false);
           setViewerId(msg.viewerId);
@@ -193,9 +194,9 @@ export default function App() {
     ws.onclose = () => {
       clearTimeout(pinger);
       if (socket.current !== ws || unmounted.current) return; // replaced or closed on purpose
-      if (!me) return setViewerId(null); // never got in: back to the join form
+      if (!token) return setViewerId(null); // never got in: back to the join form
       setReconnecting(true);
-      setTimeout(() => connect(name, me, joined ? 0 : attempt + 1), reconnectDelay(joined ? 0 : attempt));
+      setTimeout(() => connect(name, token, joined ? 0 : attempt + 1), reconnectDelay(joined ? 0 : attempt));
     };
   }
 

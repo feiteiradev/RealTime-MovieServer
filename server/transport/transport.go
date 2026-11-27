@@ -89,7 +89,7 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 				sendError(conn, "Already joined")
 			} else if json.Unmarshal(data, &m) != nil {
 				sendError(conn, "Invalid join message")
-			} else if id, out, err := h.room.Join(m.Nickname, m.ViewerID); err != nil {
+			} else if id, out, err := h.room.Join(m.Nickname, m.RejoinToken); err != nil {
 				sendError(conn, err.Error())
 			} else {
 				viewerID = id

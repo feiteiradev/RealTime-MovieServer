@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
@@ -29,18 +30,20 @@ type Room struct {
 	viewers []Viewer // in join order
 	state   PlaybackState
 	gone    map[string]time.Time // disconnected viewerId → when
+	tokens  map[string]string    // private rejoinToken → viewerId
 	feed    []FeedEntry          // oldest first
 }
 
 // New makes an empty Room. now is the server clock (time.Now outside tests).
 func New(now func() time.Time) *Room {
-	return &Room{now: now, gone: map[string]time.Time{}, state: PlaybackState{Rate: 1, UpdatedAt: now().UnixMilli()}}
+	return &Room{now: now, gone: map[string]time.Time{}, tokens: map[string]string{}, state: PlaybackState{Rate: 1, UpdatedAt: now().UnixMilli()}}
 }
 
-// Join adds a Viewer. A reconnecting Viewer passes their previous viewerId and gets their
-// presence entry back if it still exists under the same Nickname; otherwise they join afresh.
+// Join adds a Viewer. A reconnecting Viewer passes the private rejoinToken from their welcome
+// and gets their presence entry back if it still exists under the same Nickname; otherwise
+// they join afresh. The token, unlike the public viewerId, is known only to that Viewer.
 // On error the Room is unchanged and nothing is sent.
-func (r *Room) Join(nickname, previousID string) (viewerID string, out []Delivery, err error) {
+func (r *Room) Join(nickname, rejoinToken string) (viewerID string, out []Delivery, err error) {
 	nickname = strings.TrimSpace(nickname)
 	if nickname == "" {
 		return "", nil, errors.New("Nickname can't be empty")
@@ -49,20 +52,22 @@ func (r *Room) Join(nickname, previousID string) (viewerID string, out []Deliver
 		return "", nil, fmt.Errorf("Nickname must be at most %d characters", MaxNicknameLength)
 	}
 	var v Viewer
-	if i := r.index(previousID); i >= 0 && r.viewers[i].Nickname == nickname {
+	if i := r.index(r.tokens[rejoinToken]); i >= 0 && r.viewers[i].Nickname == nickname {
 		// A reconnect within the grace period: same entry, no new "join" in the Activity Feed.
-		delete(r.gone, previousID)
+		delete(r.gone, r.viewers[i].ID)
 		r.viewers[i].Status = "watching"
 		v = r.viewers[i]
 	} else {
 		v = Viewer{ID: rand.Text(), Nickname: nickname, Status: "watching"}
+		rejoinToken = rand.Text()
+		r.tokens[rejoinToken] = v.ID
 		r.viewers = append(r.viewers, v)
 		feed := r.record(v.ID, FeedEntry{Action: "join"})
 		feed.Except = v.ID // the joiner gets it in their welcome
 		out = []Delivery{feed}
 	}
 	return v.ID, append([]Delivery{
-		{To: v.ID, Msg: Welcome{Type: "welcome", ViewerID: v.ID, State: r.state, Viewers: r.Viewers(), Feed: slices.Clone(r.feed)}},
+		{To: v.ID, Msg: Welcome{Type: "welcome", ViewerID: v.ID, RejoinToken: rejoinToken, State: r.state, Viewers: r.Viewers(), Feed: slices.Clone(r.feed)}},
 		{Except: v.ID, Msg: r.viewersMsg()},
 	}, out...), nil
 }
@@ -100,6 +105,7 @@ func (r *Room) Leave(viewerID string) []Delivery {
 	}
 	feed := r.record(viewerID, FeedEntry{Action: "leave"}) // while their Nickname is still known
 	r.viewers = slices.Delete(r.viewers, i, i+1)
+	maps.DeleteFunc(r.tokens, func(_, id string) bool { return id == viewerID })
 	return []Delivery{{Msg: r.viewersMsg()}, feed}
 }
 

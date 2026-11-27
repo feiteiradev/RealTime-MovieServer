@@ -60,7 +60,7 @@ func TestReconnectingWithinTheGracePeriodReusesThePresenceEntry(t *testing.T) {
 	clock.ms.Store(1_000 + room.DisconnectGrace.Milliseconds() - 1)
 
 	back := dial(t, srv)
-	back.send(map[string]any{"type": "join", "nickname": "Rui", "viewerId": ruiID})
+	back.send(map[string]any{"type": "join", "nickname": "Rui", "rejoinToken": rui.rejoinToken})
 	w := back.expect("welcome")
 	if w.ViewerID != ruiID {
 		t.Fatalf("rejoined as %q, want the same viewerId %q", w.ViewerID, ruiID)
@@ -111,8 +111,8 @@ func TestRejoiningOnAFreshConnectionTakesOverTheOldOne(t *testing.T) {
 
 	// The server hasn't noticed Rui's old connection is dead yet.
 	back := dial(t, srv)
-	back.send(map[string]any{"type": "join", "nickname": "Rui", "viewerId": ruiID})
-	if w := back.expect("welcome"); w.ViewerID != ruiID {
+	back.send(map[string]any{"type": "join", "nickname": "Rui", "rejoinToken": rui.rejoinToken})
+	if w := back.expect("welcome"); w.ViewerID != ruiID || w.RejoinToken != rui.rejoinToken {
 		t.Fatalf("rejoined as %q, want %q", w.ViewerID, ruiID)
 	}
 	if got := statuses(ana.expect("viewers")); got != "Ana:watching,Rui:watching" {
@@ -126,27 +126,44 @@ func TestRejoiningOnAFreshConnectionTakesOverTheOldOne(t *testing.T) {
 	ana.expect("pong") // anything else (feed aside) means the Room spoke up
 }
 
-func TestRejoinWithAnUnknownViewerIDOrAnotherNicknameJoinsAfresh(t *testing.T) {
+func TestRejoinWithAnUnknownTokenOrAnotherNicknameJoinsAfresh(t *testing.T) {
 	srv, _ := startClockedServer(t, 1_000)
 	ana := dial(t, srv)
 	anaID := ana.join("Ana").ViewerID
 
-	// After a restart the old viewerId means nothing: a fresh Viewer in a fresh Room.
+	// After a restart the old token means nothing: a fresh Viewer in a fresh Room.
 	rui := dial(t, srv)
-	rui.send(map[string]any{"type": "join", "nickname": "Rui", "viewerId": "GONE"})
-	if w := rui.expect("welcome"); w.ViewerID == "GONE" || w.ViewerID == anaID {
-		t.Fatalf("got viewerId %q, want a fresh one", w.ViewerID)
+	rui.send(map[string]any{"type": "join", "nickname": "Rui", "rejoinToken": "GONE"})
+	if w := rui.expect("welcome"); w.ViewerID == anaID || w.RejoinToken == "GONE" {
+		t.Fatalf("got viewerId %q, token %q, want fresh ones", w.ViewerID, w.RejoinToken)
 	}
 	ana.expect("viewers")
 
-	// Another Viewer's id under a different Nickname doesn't take over their entry.
+	// Another Viewer's token under a different Nickname doesn't take over their entry.
 	mia := dial(t, srv)
-	mia.send(map[string]any{"type": "join", "nickname": "Mia", "viewerId": anaID})
+	mia.send(map[string]any{"type": "join", "nickname": "Mia", "rejoinToken": ana.rejoinToken})
 	w := mia.expect("welcome")
 	if w.ViewerID == anaID {
 		t.Fatal("Mia took over Ana's presence entry")
 	}
 	if got := statuses(w); got != "Ana:watching,Rui:watching,Mia:watching" {
 		t.Fatalf("viewers = %v", got)
+	}
+}
+
+func TestAnotherViewersPublicIDCannotReclaimTheirEntry(t *testing.T) {
+	srv, _ := startClockedServer(t, 1_000)
+	ana := dial(t, srv)
+	anaID := ana.join("Ana").ViewerID
+
+	// Everyone sees Ana's viewerId in the presence list; posing as her with it must not work.
+	impostor := dial(t, srv)
+	impostor.send(map[string]any{"type": "join", "nickname": "Ana", "rejoinToken": anaID})
+	w := impostor.expect("welcome")
+	if w.ViewerID == anaID || w.RejoinToken == ana.rejoinToken {
+		t.Fatal("a join with Ana's public viewerId reclaimed her entry")
+	}
+	if got := statuses(w); got != "Ana:watching,Ana:watching" {
+		t.Fatalf("viewers = %v, want Ana and a second, separate Ana", got)
 	}
 }

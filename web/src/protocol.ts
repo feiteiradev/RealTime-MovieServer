@@ -28,8 +28,8 @@ export type PlaybackState = {
 };
 
 export type ClientMessage =
-  /** viewerId is set on a reconnect, to reclaim the same presence entry. */
-  | { type: "join"; nickname: string; viewerId?: string }
+  /** rejoinToken (from welcome) is set on a reconnect, to reclaim the same presence entry. */
+  | { type: "join"; nickname: string; rejoinToken?: string }
   | { type: "play"; position: number }
   | { type: "pause"; position: number }
   | { type: "seek"; position: number }
@@ -53,8 +53,8 @@ export type FeedEntry = {
 };
 
 export type ServerMessage =
-  /** feed: the last 50 Activity Feed entries, oldest first. */
-  | { type: "welcome"; viewerId: string; state: PlaybackState; viewers: Viewer[]; feed: FeedEntry[] }
+  /** rejoinToken: private to this Viewer, sent in join to reclaim their entry. feed: the last 50 Activity Feed entries, oldest first. */
+  | { type: "welcome"; viewerId: string; rejoinToken: string; state: PlaybackState; viewers: Viewer[]; feed: FeedEntry[] }
   | { type: "feed"; entry: FeedEntry }
   | { type: "viewers"; viewers: Viewer[] }
   | { type: "state"; state: PlaybackState; byViewerId: string }

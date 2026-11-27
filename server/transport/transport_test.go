@@ -35,8 +35,9 @@ func startClockedServer(t *testing.T, startMs int64) (*httptest.Server, *fakeClo
 func wsURL(srv *httptest.Server) string { return "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws" }
 
 type client struct {
-	t    *testing.T
-	conn *websocket.Conn
+	t           *testing.T
+	conn        *websocket.Conn
+	rejoinToken string // from the last welcome this client read via join
 }
 
 func dial(t *testing.T, srv *httptest.Server) *client {
@@ -60,16 +61,17 @@ func (c *client) send(msg map[string]any) {
 }
 
 type message struct {
-	Type       string         `json:"type"`
-	ViewerID   string         `json:"viewerId"`
-	Message    string         `json:"message"`
-	State      *playbackState `json:"state"`
-	ByViewerID string         `json:"byViewerId"`
-	ClientTime float64        `json:"clientTime"`
-	ServerTime int64          `json:"serverTime"`
-	Entry      *feedEntry     `json:"entry"`
-	Feed       []feedEntry    `json:"feed"`
-	Viewers    []struct {
+	Type        string         `json:"type"`
+	ViewerID    string         `json:"viewerId"`
+	RejoinToken string         `json:"rejoinToken"`
+	Message     string         `json:"message"`
+	State       *playbackState `json:"state"`
+	ByViewerID  string         `json:"byViewerId"`
+	ClientTime  float64        `json:"clientTime"`
+	ServerTime  int64          `json:"serverTime"`
+	Entry       *feedEntry     `json:"entry"`
+	Feed        []feedEntry    `json:"feed"`
+	Viewers     []struct {
 		ID       string `json:"id"`
 		Nickname string `json:"nickname"`
 		Status   string `json:"status"`
@@ -132,7 +134,9 @@ func (c *client) expect(typ string) message {
 func (c *client) join(nickname string) message {
 	c.t.Helper()
 	c.send(map[string]any{"type": "join", "nickname": nickname})
-	return c.expect("welcome")
+	w := c.expect("welcome")
+	c.rejoinToken = w.RejoinToken
+	return w
 }
 
 func nicknames(m message) []string {

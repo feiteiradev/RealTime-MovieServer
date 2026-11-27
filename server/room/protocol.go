@@ -6,8 +6,8 @@ package room
 // Client → server.
 
 type Join struct {
-	Nickname string `json:"nickname"`
-	ViewerID string `json:"viewerId,omitempty"` // set on a reconnect, to reclaim the same presence entry
+	Nickname    string `json:"nickname"`
+	RejoinToken string `json:"rejoinToken,omitempty"` // set on a reconnect, to reclaim the same presence entry
 }
 
 // Position is the body of play, pause and seek.
@@ -46,11 +46,12 @@ type Pong struct {
 }
 
 type Welcome struct {
-	Type     string        `json:"type"` // "welcome"
-	ViewerID string        `json:"viewerId"`
-	State    PlaybackState `json:"state"`
-	Viewers  []Viewer      `json:"viewers"`
-	Feed     []FeedEntry   `json:"feed"` // the last MaxFeedEntries, oldest first
+	Type        string        `json:"type"` // "welcome"
+	ViewerID    string        `json:"viewerId"`
+	RejoinToken string        `json:"rejoinToken"` // private to this Viewer: sent in join to reclaim their entry
+	State       PlaybackState `json:"state"`
+	Viewers     []Viewer      `json:"viewers"`
+	Feed        []FeedEntry   `json:"feed"` // the last MaxFeedEntries, oldest first
 }
 
 // State is sent to every Viewer after any Shared Control or setMedia.
