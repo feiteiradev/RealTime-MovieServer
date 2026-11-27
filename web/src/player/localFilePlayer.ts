@@ -90,7 +90,7 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
     },
     currentTime: () => video.currentTime,
     isPaused: () => video.paused,
-    isBuffering: () => video.seeking || video.readyState < video.HAVE_FUTURE_DATA,
+    isBuffering: () => video.seeking, // not readyState: a paused copy can sit below HAVE_FUTURE_DATA and must still jump to the Room
     supportsRate: true,
     destroy() {
       listening.abort();
