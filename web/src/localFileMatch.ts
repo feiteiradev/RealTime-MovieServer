@@ -6,7 +6,7 @@ type FileDetails = { name: string; size: number; duration: number };
 export function matchLocalFile(set: Extract<MediaItem, { source: "local" }>, copy: FileDetails): string {
   const diffs: string[] = [];
   const delta = copy.duration - set.duration;
-  if (Math.abs(delta) >= 1) {
+  if (Number.isFinite(delta) && Math.abs(delta) >= 1) { // an unreadable length (Infinity/NaN) says nothing about the cut
     const secs = Math.round(Math.abs(delta));
     const amount = secs >= 60 ? `${Math.round(secs / 60)} min` : `${secs} s`;
     diffs.push(`your copy is ${amount} ${delta < 0 ? "shorter" : "longer"}`);

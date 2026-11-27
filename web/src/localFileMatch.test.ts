@@ -35,3 +35,8 @@ describe("matchLocalFile", () => {
     );
   });
 });
+
+test("an unreadable copy length doesn't produce a length warning", () => {
+  const set = { source: "local" as const, name: "a.webm", size: 10, duration: 100 };
+  expect(matchLocalFile(set, { name: "a.webm", size: 10, duration: Infinity })).toBe("same");
+});
