@@ -1,43 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlaybackState } from "./protocol";
 import type { Player, PlayerEvents } from "./player/player";
-import { createYouTubePlayer } from "./player/youtubePlayer";
 import { follow } from "./sync";
-import { TransportControls } from "./TransportControls";
+import { TransportControls, type Volume } from "./TransportControls";
 
 const FOLLOW_EVERY_MS = 250;
 
 type Props = {
-  videoId: string;
+  /** The Source input (a file, a videoId); a new one makes a new player. */
+  sourceKey: unknown;
+  /** Builds the Source's player inside a fresh slot element. Captured once per sourceKey. */
+  create: (slot: HTMLElement, events: PlayerEvents) => Promise<Player>;
   playback: PlaybackState;
   /** Server clock minus local clock, ms. */
   offset: () => number;
-  /** Must only read refs: it's captured once per video. */
+  /** Must only read refs: it's captured once per sourceKey. */
   events: PlayerEvents;
+  volume: Volume;
+  onVolume: (v: Volume) => void;
+  /** Classes for the element the slot goes in. */
+  className?: string;
+  /** An error hides the player, leaving only the readable message. */
+  hideOnError?: boolean;
 };
 
-/** Embeds a YouTube video and keeps it following the Playback State. */
-export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
+/** Any Source's player, kept following the Playback State, with the Transport Controls under it. */
+export function FollowingPlayer({ sourceKey, create, playback, offset, events, volume, onVolume, className, hideOnError }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const player = useRef<Player | null>(null);
   const [ready, setReady] = useState<Player | null>(null);
+  const [failed, setFailed] = useState(false);
   const latest = useRef(playback);
   latest.current = playback;
-  // An embed error hides the player, leaving only the readable message.
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setFailed(false);
-    // A fresh element per mount; the IFrame API replaces it with its <iframe>.
+    // A fresh slot per mount, so a cancelled load can't tear down the next one.
     const slot = document.createElement("div");
     container.current!.appendChild(slot);
     const fail = (message: string) => {
-      setFailed(true);
+      if (hideOnError) setFailed(true);
       events.onError(message);
     };
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
-    createYouTubePlayer(slot, videoId, { ...events, onError: fail }).then(
+    create(slot, { ...events, onError: fail }).then(
       (p) => {
         if (cancelled) return p.destroy();
         player.current = p;
@@ -53,18 +60,24 @@ export function YouTubePlayer({ videoId, playback, offset, events }: Props) {
       player.current?.destroy();
       player.current = null;
       setReady(null);
-      container.current?.replaceChildren();
+      container.current?.replaceChildren(); // the IFrame API swaps the slot for its <iframe>
     };
-  }, [videoId]);
+  }, [sourceKey]);
 
   useEffect(() => {
     if (player.current) follow(player.current, playback, offset(), Date.now());
   }, [playback]);
 
+  // Volume is the Viewer's own and outlives any one player.
+  useEffect(() => {
+    ready?.setVolume(volume.level);
+    ready?.setMuted(volume.muted);
+  }, [ready, volume]);
+
   return (
     <div className="flex flex-col gap-3" hidden={failed}>
-      <div ref={container} className="aspect-video w-full overflow-hidden rounded-xl border border-line bg-black [&>iframe]:h-full [&>iframe]:w-full" />
-      {ready && <TransportControls player={ready} playback={playback} events={events} />}
+      <div ref={container} className={className} />
+      {ready && <TransportControls player={ready} playback={playback} events={events} volume={volume} onVolume={onVolume} />}
     </div>
   );
 }

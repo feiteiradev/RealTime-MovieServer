@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { RATES, type ClientMessage, type FeedEntry, type PlaybackState, type ServerMessage, type Viewer } from "./protocol";
 import { ActivityFeed } from "./ActivityFeed";
 import type { PlayerEvents } from "./player/player";
-import { readDuration } from "./player/localFilePlayer";
-import { LocalFilePlayer } from "./LocalFilePlayer";
+import { createLocalFilePlayer, readDuration } from "./player/localFilePlayer";
+import { createYouTubePlayer } from "./player/youtubePlayer";
+import { FollowingPlayer } from "./FollowingPlayer";
+import type { Volume } from "./TransportControls";
 import { CopyCheck } from "./CopyCheck";
 import { Notice } from "./Notice";
 import { SetYouTubeLink } from "./SetYouTubeLink";
-import { YouTubePlayer } from "./YouTubePlayer";
 import { bestClockSample, clockSample, expectedPosition, type ClockSample } from "./sync";
 
 const NICKNAME_KEY = "campfire.nickname";
@@ -46,6 +47,7 @@ export default function App() {
   const [copy, setCopy] = useState<File | null>(null);
   /** The socket dropped and we're trying to get back in; controls reach nobody meanwhile. */
   const [reconnecting, setReconnecting] = useState(false);
+  const [volume, setVolume] = useState<Volume>({ level: 1, muted: false });
   const unmounted = useRef(false);
   const socket = useRef<WebSocket | null>(null);
   const playbackRef = useRef<PlaybackState | null>(null);
@@ -88,7 +90,7 @@ export default function App() {
     setPlayback({ ...s, playing, position, updatedAt: Date.now() + offset() });
   }
 
-  // Only reads refs: LocalFilePlayer captures it once per file.
+  // Only reads refs: FollowingPlayer captures it once per Media Item.
   const playerEvents: PlayerEvents = {
     onUserPlay: (p) => control("play", p),
     onUserPause: (p) => control("pause", p),
@@ -269,7 +271,17 @@ export default function App() {
             </div>
           )}
           {item?.source === "youtube" && playback && (
-            <YouTubePlayer videoId={item.videoId} playback={playback} offset={offset} events={playerEvents} />
+            <FollowingPlayer
+              sourceKey={item.videoId}
+              create={(slot, events) => createYouTubePlayer(slot, item.videoId, events)}
+              playback={playback}
+              offset={offset}
+              events={playerEvents}
+              volume={volume}
+              onVolume={setVolume}
+              className="aspect-video w-full overflow-hidden rounded-xl border border-line bg-black [&>iframe]:h-full [&>iframe]:w-full"
+              hideOnError
+            />
           )}
           {item?.source === "local" && !copy && (
             <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface p-5 text-center">
@@ -281,7 +293,22 @@ export default function App() {
             </div>
           )}
           {item?.source === "local" && copy && playback && (
-            <LocalFilePlayer file={copy} playback={playback} offset={offset} events={playerEvents} />
+            <FollowingPlayer
+              sourceKey={copy}
+              create={(slot, events) => {
+                const video = document.createElement("video");
+                video.controls = true;
+                video.setAttribute("aria-label", copy.name);
+                video.className = "aspect-video w-full rounded-xl border border-line bg-black";
+                slot.appendChild(video);
+                return createLocalFilePlayer(video, copy, events);
+              }}
+              playback={playback}
+              offset={offset}
+              events={playerEvents}
+              volume={volume}
+              onVolume={setVolume}
+            />
           )}
           {item?.source === "local" && copy && <CopyCheck item={item} copy={copy} />}
           {error && <Notice tone="danger">{error}</Notice>}

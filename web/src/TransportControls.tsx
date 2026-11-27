@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { RATES, type PlaybackState } from "./protocol";
 import type { Player, PlayerEvents } from "./player/player";
 
@@ -14,20 +14,19 @@ export function shortcut(key: string, target: { tagName: string; isContentEditab
   return KEYS[key] ?? null;
 }
 
-type Props = { player: Player; playback: PlaybackState; events: PlayerEvents };
+/** The Viewer's own volume, 0..1, and mute. */
+export type Volume = { level: number; muted: boolean };
+
+type Props = { player: Player; playback: PlaybackState; events: PlayerEvents; volume: Volume; onVolume: (v: Volume) => void };
 
 /** Speed and ±10 s are Shared Controls, sent through the player events; volume and mute stay local. */
-export function TransportControls({ player, playback, events }: Props) {
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
+export function TransportControls({ player, playback, events, volume, onVolume }: Props) {
   // YouTube items carry no duration; its player clamps a seek past the end itself.
   const duration = playback.mediaItem?.source === "local" ? playback.mediaItem.duration : Infinity;
 
   const jump = (delta: number) => events.onUserSeek(Math.min(Math.max(player.currentTime() + delta, 0), duration));
   const changeVolume = (v: number) => {
-    v = Math.round(Math.min(Math.max(v, 0), 1) * 10) / 10;
-    setVolume(v);
-    player.setVolume(v);
+    onVolume({ ...volume, level: Math.round(Math.min(Math.max(v, 0), 1) * 10) / 10 });
   };
 
   // Latest handlers for the one window listener.
@@ -36,7 +35,7 @@ export function TransportControls({ player, playback, events }: Props) {
     if (a === "toggle") (player.isPaused() ? events.onUserPlay : events.onUserPause)(player.currentTime());
     else if (a === "back") jump(-JUMP_SECONDS);
     else if (a === "forward") jump(JUMP_SECONDS);
-    else changeVolume(volume + (a === "louder" ? VOLUME_STEP : -VOLUME_STEP));
+    else changeVolume(volume.level + (a === "louder" ? VOLUME_STEP : -VOLUME_STEP));
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,7 +80,7 @@ export function TransportControls({ player, playback, events }: Props) {
           min={0}
           max={1}
           step={VOLUME_STEP}
-          value={volume}
+          value={volume.level}
           onChange={(e) => changeVolume(Number(e.target.value))}
         />
       </label>
@@ -89,11 +88,8 @@ export function TransportControls({ player, playback, events }: Props) {
         <input
           type="checkbox"
           className="size-4 cursor-pointer accent-ember"
-          checked={muted}
-          onChange={(e) => {
-            setMuted(e.target.checked);
-            player.setMuted(e.target.checked);
-          }}
+          checked={volume.muted}
+          onChange={(e) => onVolume({ ...volume, muted: e.target.checked })}
         />
         Mute
       </label>
