@@ -66,6 +66,7 @@ export async function createLocalFilePlayer(video: HTMLVideoElement, file: File,
 
   return {
     play() {
+      if (video.ended) return; // a finished copy stays finished; play() would restart it from 0
       playing = true;
       video.play().catch(() => {}); // blocked autoplay: the next sync tick tries again
     },

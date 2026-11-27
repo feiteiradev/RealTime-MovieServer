@@ -100,7 +100,11 @@ export default function App() {
       const now = Date.now() + offset();
       setPlayback({ ...s, position: expectedPosition(s, now), rate, updatedAt: now });
     },
-    onEnded: (p) => control("pause", p),
+    onEnded: (p) => {
+      // A shorter copy ending early mustn't pause the Room for everyone.
+      const item = playbackRef.current?.mediaItem;
+      if (item?.source !== "local" || p >= item.duration - 1) control("pause", p);
+    },
     onBuffering: setBuffering,
     onError: setError,
   };
