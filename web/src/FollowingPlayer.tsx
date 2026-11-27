@@ -32,6 +32,7 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
   const [ready, setReady] = useState<Player | null>(null);
   const [failed, setFailed] = useState(false);
   const latest = useRef(playback);
+  const settle = useRef({ check: false }); // per player; see follow()
   latest.current = playback;
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
     let player: Player | undefined;
+    settle.current = { check: false };
     create(slot, { ...events, onError: fail }).then(
       (p) => {
         if (cancelled) return p.destroy();
@@ -53,7 +55,7 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
         setReady(p); // the [playback, ready] effect follows it straight away
         onReady?.(p);
         events.onBuffering(false); // a fresh player isn't buffering yet
-        timer = setInterval(() => follow(p, latest.current, offset(), Date.now()), FOLLOW_EVERY_MS);
+        timer = setInterval(() => follow(p, latest.current, offset(), Date.now(), settle.current), FOLLOW_EVERY_MS);
       },
       (err: Error) => !cancelled && fail(err.message),
     );
@@ -68,7 +70,7 @@ export function FollowingPlayer({ sourceKey, create, playback, offset, events, v
   }, [sourceKey]);
 
   useEffect(() => {
-    if (ready) follow(ready, playback, offset(), Date.now());
+    if (ready) follow(ready, playback, offset(), Date.now(), settle.current);
   }, [playback, ready]);
 
   // Volume is the Viewer's own and outlives any one player.

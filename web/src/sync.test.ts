@@ -124,6 +124,26 @@ describe("follow", () => {
     expect(calls).toEqual(["play", "rate 1", "seek 15"]);
   });
 
+  test("after a jump has loaded, one check closes smaller drift; later ticks use the 1 s rule again", () => {
+    const settle = { check: false };
+    follow(fakePlayer(10, false).player, state({ playing: true, position: 10 }), 0, 15_000, settle);
+    expect(settle.check).toBe(true);
+    // still loading: no jump, and the check waits
+    const loading = fakePlayer(15, true);
+    follow(loading.player, state({ playing: true, position: 10 }), 0, 15_600, settle);
+    expect(loading.calls).toEqual(["play", "rate 1"]);
+    expect(settle.check).toBe(true);
+    // loaded 0.6 s behind: the settle check jumps
+    const landed = fakePlayer(15, false);
+    follow(landed.player, state({ playing: true, position: 10 }), 0, 15_600, settle);
+    expect(landed.calls).toContain("seek 15.6");
+    expect(settle.check).toBe(false);
+    // 0.6 s behind again: back to the 1 s rule, left alone
+    const steady = fakePlayer(16, false);
+    follow(steady.player, state({ playing: true, position: 10 }), 0, 16_600, settle);
+    expect(steady.calls).toEqual(["play", "rate 1"]);
+  });
+
   test("buffering skips the jump but still applies play and rate", () => {
     const { player, calls } = fakePlayer(10, true);
     follow(player, state({ playing: true, position: 10 }), 0, 15_000);
