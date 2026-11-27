@@ -1,0 +1,5 @@
+node_modules/
+bin/
+server/dist/*
+!server/dist/.gitkeep
+.DS_Store
