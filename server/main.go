@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"campfire/room"
 	"campfire/transport"
@@ -29,5 +30,5 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("Campfire is running at http://localhost:%d\n", *port)
-	log.Fatal(http.Serve(ln, transport.Handler(room.New(), static)))
+	log.Fatal(http.Serve(ln, transport.Handler(room.New(time.Now), static)))
 }

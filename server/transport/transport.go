@@ -85,6 +85,27 @@ func (h *hub) serveWS(w http.ResponseWriter, req *http.Request) {
 				h.conns[id] = conn
 				h.deliver(out)
 			}
+		// One case per client message: decode its body from protocol.go, call the Room, deliver.
+		case "play":
+			if m, ok := decode[room.Position](conn, data); ok {
+				h.deliver(h.room.Play(viewerID, m.Position))
+			}
+		case "pause":
+			if m, ok := decode[room.Position](conn, data); ok {
+				h.deliver(h.room.Pause(viewerID, m.Position))
+			}
+		case "seek":
+			if m, ok := decode[room.Position](conn, data); ok {
+				h.deliver(h.room.Seek(viewerID, m.Position))
+			}
+		case "setMedia":
+			if m, ok := decode[room.SetMedia](conn, data); ok {
+				h.deliver(h.room.SetMedia(viewerID, m.MediaItem))
+			}
+		case "ping":
+			if m, ok := decode[room.Ping](conn, data); ok {
+				h.deliver(h.room.Ping(viewerID, m.ClientTime))
+			}
 		default:
 			sendError(conn, "Unknown message type "+envelope.Type)
 		}
@@ -109,6 +130,16 @@ func (h *hub) deliver(out []room.Delivery) {
 			}
 		}
 	}
+}
+
+// decode reads a message body, or tells the sender it was malformed.
+func decode[T any](c *websocket.Conn, data []byte) (T, bool) {
+	var m T
+	if err := json.Unmarshal(data, &m); err != nil {
+		sendError(c, "Invalid message: "+err.Error())
+		return m, false
+	}
+	return m, true
 }
 
 func sendError(c *websocket.Conn, message string) {

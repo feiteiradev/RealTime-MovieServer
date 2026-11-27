@@ -19,7 +19,7 @@ import (
 func startServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	static := fstest.MapFS{"index.html": {Data: []byte("<h1>Campfire</h1>")}}
-	srv := httptest.NewServer(transport.Handler(room.New(), static))
+	srv := httptest.NewServer(transport.Handler(room.New(time.Now), static))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -50,13 +50,37 @@ func (c *client) send(msg map[string]any) {
 }
 
 type message struct {
-	Type     string `json:"type"`
-	ViewerID string `json:"viewerId"`
-	Message  string `json:"message"`
-	Viewers  []struct {
+	Type       string         `json:"type"`
+	ViewerID   string         `json:"viewerId"`
+	Message    string         `json:"message"`
+	State      *playbackState `json:"state"`
+	ByViewerID string         `json:"byViewerId"`
+	ClientTime float64        `json:"clientTime"`
+	ServerTime int64          `json:"serverTime"`
+	Viewers    []struct {
 		ID       string `json:"id"`
 		Nickname string `json:"nickname"`
 	} `json:"viewers"`
+}
+
+type mediaItem struct {
+	Source   string  `json:"source"`
+	Name     string  `json:"name"`
+	Size     int64   `json:"size"`
+	Duration float64 `json:"duration"`
+}
+
+type playbackState struct {
+	MediaItem *mediaItem `json:"mediaItem"`
+	Playing   bool       `json:"playing"`
+	Position  float64    `json:"position"`
+	Rate      float64    `json:"rate"`
+	UpdatedAt int64      `json:"updatedAt"`
+}
+
+func (s playbackState) equal(o playbackState) bool {
+	sameItem := (s.MediaItem == nil) == (o.MediaItem == nil) && (s.MediaItem == nil || *s.MediaItem == *o.MediaItem)
+	return sameItem && s.Playing == o.Playing && s.Position == o.Position && s.Rate == o.Rate && s.UpdatedAt == o.UpdatedAt
 }
 
 func (c *client) read() message {
