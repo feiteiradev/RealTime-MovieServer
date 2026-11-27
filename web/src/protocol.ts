@@ -30,8 +30,22 @@ export type ClientMessage =
   | { type: "setMedia"; mediaItem: MediaItem }
   | { type: "ping"; clientTime: number };
 
+/** One line of the Activity Feed. */
+export type FeedEntry = {
+  /** Server Unix ms. */
+  at: number;
+  nickname: string;
+  action: "join" | "leave" | "play" | "pause" | "seek" | "setMedia";
+  /** play, pause, seek: seconds. */
+  position?: number;
+  /** setMedia. */
+  mediaItem?: MediaItem;
+};
+
 export type ServerMessage =
-  | { type: "welcome"; viewerId: string; state: PlaybackState; viewers: Viewer[] }
+  /** feed: the last 50 Activity Feed entries, oldest first. */
+  | { type: "welcome"; viewerId: string; state: PlaybackState; viewers: Viewer[]; feed: FeedEntry[] }
+  | { type: "feed"; entry: FeedEntry }
   | { type: "viewers"; viewers: Viewer[] }
   | { type: "state"; state: PlaybackState; byViewerId: string }
   | { type: "pong"; clientTime: number; serverTime: number }
