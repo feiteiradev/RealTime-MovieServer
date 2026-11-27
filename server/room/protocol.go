@@ -49,6 +49,7 @@ type Welcome struct {
 	ViewerID string        `json:"viewerId"`
 	State    PlaybackState `json:"state"`
 	Viewers  []Viewer      `json:"viewers"`
+	Feed     []FeedEntry   `json:"feed"` // the last MaxFeedEntries, oldest first
 }
 
 // State is sent to every Viewer after any Shared Control or setMedia.
@@ -93,6 +94,22 @@ type Viewer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
 	Status   string `json:"status"` // "watching", "buffering", "needsFile" or "disconnected" (set by the server only)
+}
+
+// Feed is sent to every Viewer for each new Activity Feed entry.
+type Feed struct {
+	Type  string    `json:"type"` // "feed"
+	Entry FeedEntry `json:"entry"`
+}
+
+// FeedEntry is one line of the Activity Feed: who did what, and when.
+type FeedEntry struct {
+	At        int64      `json:"at"` // server Unix ms
+	Nickname  string     `json:"nickname"`
+	Action    string     `json:"action"`              // "join", "leave", "play", "pause", "seek", "setMedia" or "rate"
+	Position  *float64   `json:"position,omitempty"`  // play, pause, seek: seconds
+	MediaItem *MediaItem `json:"mediaItem,omitempty"` // setMedia
+	Rate      float64    `json:"rate,omitempty"`      // rate
 }
 
 // Delivery is a message the Room wants sent. To is a viewerId, or "" for every Viewer

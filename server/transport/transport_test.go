@@ -57,6 +57,8 @@ type message struct {
 	ByViewerID string         `json:"byViewerId"`
 	ClientTime float64        `json:"clientTime"`
 	ServerTime int64          `json:"serverTime"`
+	Entry      *feedEntry     `json:"entry"`
+	Feed       []feedEntry    `json:"feed"`
 	Viewers    []struct {
 		ID       string `json:"id"`
 		Nickname string `json:"nickname"`
@@ -100,9 +102,14 @@ func (c *client) read() message {
 	return m
 }
 
+// expect reads the next message of type typ. Activity Feed entries are skipped unless asked
+// for, so tests of other behaviour needn't read them.
 func (c *client) expect(typ string) message {
 	c.t.Helper()
 	m := c.read()
+	for m.Type == "feed" && typ != "feed" {
+		m = c.read()
+	}
 	if m.Type != typ {
 		c.t.Fatalf("got %q message %+v, want %q", m.Type, m, typ)
 	}

@@ -17,7 +17,8 @@ async function joinAs(browser: Browser, nickname: string): Promise<Page> {
   return page;
 }
 
-const presence = (page: Page, text: string) => page.getByRole("listitem").filter({ hasText: text });
+const presence = (page: Page, text: string) =>
+  page.getByRole("region", { name: /In the Room/ }).getByRole("listitem").filter({ hasText: text });
 
 test("statuses show in the presence list, and a renamed copy warns without blocking", async ({ browser }) => {
   const ana = await joinAs(browser, "Ana");
